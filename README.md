@@ -70,7 +70,6 @@ print(client.generate_text("How do I write an async function?"))
 |OpenAI|OpenAIClient|Supports chat & text, uses openai SDK|
 |AWS Bedrock|BedrockClient|Integrates w/ boto3; flexible across models|
 |Ollama|OllamaClient|Works with locally served models|
-⸻
 
 # Adding a New Provider
 
@@ -101,7 +100,15 @@ class MyProviderClient(BaseLLMClient):
 
 ⸻
 
-Development
+
+## Bedrock Specific Support
+
+If tool_config is optional and can be None, but the method self.client.converse() doesn’t accept None for that parameter (or fails when toolConfig is passed as None), the clean and safe approach is to conditionally include the argument only when it’s not None.
+
+In Python, you can handle this by building the arguments dynamically using a dictionary and unpacking it with **. Here’s how:
+
+
+# Development
 ```bash
 # Install
 git clone https://github.com/yourname/llm-manager.git
@@ -133,9 +140,3 @@ Acknowledgments
 This project was built to reduce duplicate effort across LLM integration projects and streamline experimentation with different models.
 
 ---
-
-If tool_config is optional and can be None, but the method self.client.converse() doesn’t accept None for that parameter (or fails when toolConfig is passed as None), the clean and safe approach is to conditionally include the argument only when it’s not None.
-
-In Python, you can handle this by building the arguments dynamically using a dictionary and unpacking it with **. Here’s how:
-
-⸻
