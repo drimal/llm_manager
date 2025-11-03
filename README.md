@@ -24,13 +24,14 @@ This package abstracts differences between model providers such as OpenAI, Anthr
 
 ```bash
 pip install llm-manager
-
+```
 (If publishing to PyPI, replace this with exact instructions)
 
 ⸻
 
-Quick Start
+# Quick Start
 
+```python
 from llm_manager.factory import LLMFactory
 
 # Create an OpenAI client
@@ -39,16 +40,16 @@ client = LLMFactory.get_client(
     api_key="your-openai-api-key",
     model="gpt-4"
 )
-
 response = client.generate(prompt="What is reinforcement learning?")
 print(response["text")
-
+```
 ⸻
 
-Using System Prompts
+# Using System Prompts
 
 System prompts allow you to specify consistent persona or context for all model interactions.
-
+```python
+from llm_manager.factory import LLMFactory
 client = LLMFactory.get_client(
     provider_name="ollama",
     base_url="http://localhost:11434",
@@ -58,27 +59,28 @@ client = LLMFactory.get_client(
 
 print(client.generate_text("How do I write an async function?"))
 
+```
 
 ⸻
 
-Supported Providers
+# Supported Providers
 
-Provider	Class Name	Notes
-OpenAI	OpenAIClient	Supports chat & text, uses openai SDK
-AWS Bedrock	BedrockClient	Integrates w/ boto3; flexible across models
-Ollama	OllamaClient	Works with locally served models
-
+|Provider | Class Name|Notes|
+|:---:|:---:|:---:|
+|OpenAI|OpenAIClient|Supports chat & text, uses openai SDK|
+|AWS Bedrock|BedrockClient|Integrates w/ boto3; flexible across models|
+|Ollama|OllamaClient|Works with locally served models|
 ⸻
 
-Adding a New Provider
+# Adding a New Provider
 
 To add another LLM provider:
 	1.	Create a class that inherits from BaseLLMClient
 	2.	Implement generate()
 	3.	Register it in factory.py
 
-Example skeleton:
-
+## Example skeleton:
+```python
 class MyProviderClient(BaseLLMClient):
     def __init__(self, api_key: str, **kwargs):
         super().__init__(system_prompt=kwargs.get("system_prompt"))
@@ -87,28 +89,31 @@ class MyProviderClient(BaseLLMClient):
     def generate(self, prompt: str, **kwargs) -> str:
         # Call provider API
         pass
-⸻
+```
+---
 
-Roadmap
-	•	Add async support
-	•	Structured output parsing (Pydantic models)
-	•	Support for streaming/real-time tokens
-	•	Expanded Bedrock model support detection
-	•	CLI utility for testing providers
+# Roadmap
+    * Add async support
+    * Structured output parsing (Pydantic models)
+    * Support for streaming/real-time tokens
+    * Expanded Bedrock model support detection
+	* CLI utility for testing providers
 
 ⸻
 
 Development
-
+```bash
+# Install
 git clone https://github.com/yourname/llm-manager.git
 cd llm-manager
 pip install -e .
 
-Run tests:
+
+# Run tests:
 
 pytest
 
-
+```
 ⸻
 
 License
