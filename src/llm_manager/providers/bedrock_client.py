@@ -2,6 +2,11 @@ from typing import Any, Dict, List
 from ..base import BaseLLMClient
 import boto3
 from ..utils import LLMResponse
+from ..exceptions import LLMProviderError
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class BedrockClient(BaseLLMClient):
@@ -44,14 +49,15 @@ class BedrockClient(BaseLLMClient):
         # Include toolConfig only when it's not None
         if tool_config is not None:
             kwargs["toolConfig"] = tool_config
+        logger.debug(f"LLM Request: {new_kwargs}")
         try:
             response = self.client.converse(**new_kwargs)
+            logger.debug(f"LLM Response: {response}")
             text = response["output"]["message"]["content"][0]["text"]
             usage = response["usage"]
             stop_reason = response["stopReason"]
             llm_response = LLMResponse(text=text, usage=usage, stop_reason=stop_reason)
             return llm_response
-        except BaseException as e:
-            print(e)
+        except LLMProviderError as e:
+            logger.error(f"Error: {e}")
             raise e
-        # return response['output']['message']['content'][0]['text']

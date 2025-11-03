@@ -1,30 +1,57 @@
 from llm_manager.factory import LLMFactory
+from llm_manager.exceptions import UnknownProviderError
 import os
 import sys
 from dotenv import load_dotenv
+from argparse import ArgumentParser
+import logging
+import json
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO) 
+logger = logging.getLogger(__name__)
+
+def parse_arguments():
+    parser = ArgumentParser()
+    parser.add_argument("-p", "--provider", type=str, required=False, default="ollama")
+    parser.add_argument("-m", "--model", type=str, default="nemotron-mini")
+    parser.add_argument("-q", "--question", type=str, default="why is sky blue?")
+    return parser.parse_args()
 
 
-provider_name = sys.argv[1]
-params = {"provider_name": provider_name}
-if provider_name == "openai":
-    params["api_key"] = os.getenv("OPENAI_API_KEY")
-    model = "gpt-4o-mini"
-elif provider_name == "anthropic":
-    params["api_key"] = os.getenv("ANTHROPIC_API_KEY")
-elif provider_name == "bedrock":
-    params["aws_access_key_id"] = os.getenv("AWS_ACCESS_KEY_ID")
-    params["aws_secret_access_key"] = os.getenv("AWS_SECRET_ACCESS_KEY")
-    params["region_name"] = os.getenv("AWS_REGION")
-    model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-elif provider_name == "ollama":
-    params["base_url"] = os.getenv("OLLAMA_BASE_URL")
-    model = "nemotron-mini"
 
 
-print(params)
-client = LLMFactory.get_client(**params)
-prompt = "why is sky blue?"
-response = client.generate(prompt=prompt)
-print(response)
+def main(args):
+    provider_name = args.provider
+    params = {"provider_name": provider_name}
+    model = args.model
+    query = args.question
+
+    if provider_name == "openai":
+        params["api_key"] = os.getenv("OPENAI_API_KEY")
+        model = "gpt-4o-mini"
+    elif provider_name == "anthropic":
+        params["api_key"] = os.getenv("ANTHROPIC_API_KEY")
+    elif provider_name == "bedrock":
+        params["aws_access_key_id"] = os.getenv("AWS_ACCESS_KEY_ID")
+        params["aws_secret_access_key"] = os.getenv("AWS_SECRET_ACCESS_KEY")
+        params["region_name"] = os.getenv("AWS_REGION")
+        model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    elif provider_name == "ollama":
+        params["base_url"] = os.getenv("OLLAMA_BASE_URL")
+        model = "nemotron-mini"
+    else:
+        raise UnknownProviderError(f"Unsupported provider: {provider_name}")
+
+
+    client = LLMFactory.get_client(**params)
+    llm_config = {"model": model}
+
+    response = client.generate(prompt=query, **llm_config)
+    return response
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    response = main(args)
+    print(json.dumps(response.model_dump(), indent=4))

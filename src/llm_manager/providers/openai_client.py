@@ -1,7 +1,12 @@
 from typing import Any, Dict, List
 from ..base import BaseLLMClient
 from ..utils import LLMResponse
+from ..exceptions import LLMProviderError
 import openai
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class OpenAIClient(BaseLLMClient):
@@ -21,6 +26,7 @@ class OpenAIClient(BaseLLMClient):
             {"role": "user", "content": [{"type": "text", "text": prompt}]},
         ]
         try:
+            logger.debug(f"LLM Request: {messages}")
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -28,6 +34,7 @@ class OpenAIClient(BaseLLMClient):
                 max_tokens=kwargs.get("max_tokens", 256),
                 top_p=kwargs.get("top_p", 1),
             )
+            logger.debug(f"LLM Response: {response}")
             text = response.choices[0].message.content.strip()
             usage = response.usage
             usage_stats = {
@@ -40,7 +47,6 @@ class OpenAIClient(BaseLLMClient):
                 text=text, usage=usage_stats, stop_reason=stop_reason
             )
             return llm_response
-        except Exception as e:
-            print(e)
-            raise e
-        # return response.choices[0].message.content.strip()
+        except LLMProviderError as e:
+            logger.error(f"Error: {e}")
+            raise LLMProviderError(f"Error: {e}")

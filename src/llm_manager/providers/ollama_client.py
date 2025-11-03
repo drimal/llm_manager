@@ -1,7 +1,11 @@
 from typing import Any, Dict, List
 from ..base import BaseLLMClient
 from ..utils import LLMResponse
+from ..exceptions import LLMProviderError
 from openai import OpenAI
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient(BaseLLMClient):
@@ -13,7 +17,6 @@ class OllamaClient(BaseLLMClient):
         system_prompt: str = "You are a helpful assistant.",
     ):
         self.system_prompt = system_prompt
-        print(base_url)
         self.client = OpenAI(base_url=base_url, api_key="ollama")
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -34,6 +37,7 @@ class OllamaClient(BaseLLMClient):
                 max_tokens=kwargs.get("max_tokens", 256),
                 top_p=kwargs.get("top_p", 0.0),
             )
+            logger.debug(f"LLM Response: {response}")
             text = response.choices[0].message.content.strip()
             usage = response.usage
             usage_stats = {
@@ -45,7 +49,8 @@ class OllamaClient(BaseLLMClient):
             llm_response = LLMResponse(
                 text=text, usage=usage_stats, stop_reason=stop_reason
             )
+            
             return llm_response
-        except Exception as e:
-            print(e)
-            raise e
+        except LLMProviderError as e:
+            logger.error(f"Error: {e}")
+            raise LLMProviderError(f"Error: {e}")
