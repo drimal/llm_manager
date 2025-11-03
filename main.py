@@ -1,5 +1,6 @@
 from llm_manager.factory import LLMFactory
 from llm_manager.exceptions import UnknownProviderError
+from llm_manager.prompts.prompts import system_prompt
 import os
 import sys
 from dotenv import load_dotenv
@@ -43,7 +44,7 @@ def main(args):
     else:
         raise UnknownProviderError(f"Unsupported provider: {provider_name}")
 
-
+    params["system_prompt"] = system_prompt
     client = LLMFactory.get_client(**params)
     llm_config = {"model": model}
 
