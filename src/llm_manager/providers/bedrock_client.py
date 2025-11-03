@@ -34,9 +34,9 @@ class BedrockClient(BaseLLMClient):
         inference_params = {
             "temperature": kwargs.get("temperature", 0.0),
             "topP": kwargs.get("top_p", 0.0),
-            "maxTokens": kwargs.get("max_tokens", 256),
+            "maxTokens": kwargs.get("max_tokens", 512),
         }
-        additional_model_fields = {"top_k": kwargs.get("top_k", 50)}
+        additional_model_fields = {"top_k": kwargs.get("top_k", 100)}
         tool_config = {"tools": kwargs.get("tools", [])}
 
         new_kwargs = {

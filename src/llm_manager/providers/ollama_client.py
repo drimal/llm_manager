@@ -29,14 +29,22 @@ class OllamaClient(BaseLLMClient):
             },
             {"role": "user", "content": content},
         ]
+        new_kwargs = {
+            "messages": messages,
+            "model": model,
+            "temperature": kwargs.get("temperature", 0.0),
+            "max_tokens": kwargs.get("max_tokens", 512),
+            "top_p": kwargs.get("top_p", 0.0),
+            "stream": kwargs.get("stream", False),
+            "stop": kwargs.get("stop", None),
+            "n": kwargs.get("n", 1),
+        }
+        tools = kwargs.get("tools", [])
+        if tools:
+            new_kwargs["tools"] = tools
+        logger.debug(f"LLM Request: {messages}")            
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=kwargs.get("temperature", 0.0),
-                max_tokens=kwargs.get("max_tokens", 256),
-                top_p=kwargs.get("top_p", 0.0),
-            )
+            response = self.client.chat.completions.create(**new_kwargs)
             logger.debug(f"LLM Response: {response}")
             text = response.choices[0].message.content.strip()
             usage = response.usage
