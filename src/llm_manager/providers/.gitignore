@@ -1,0 +1,86 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# PyCharm project settings
+.idea/
+
+# VS Code settings
+.vscode/
+
+# Python egg metadata
+*.egg-info/
+*.egg
+
+# PyInstaller
+*.spec
+build/
+dist/
+
+# pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MyPy
+.mypy_cache/
+
+# Redis/DB data
+*.db
+*.sqlite3
+
+# Token / credential files
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# Model artifacts / data
+models/
+checkpoints/
+*.ckpt
+*.pt
+*.bin
+*.h5
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated docs
+docs/_build/
+
+# Local development files
+*.local
+*.swp
+*.swo
+*~
+
+# Poetry
+poetry.lock
+
+# Pydantic compiled files
+.pdm-python/
+
+# LLM Cache or session data
+.llm_cache/
+.session*
+.history
