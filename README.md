@@ -57,7 +57,7 @@ client = LLMFactory.get_client(
     system_prompt="You are an expert Python software engineer."
 )
 
-print(client.generate_text("How do I write an async function?"))
+print(client.generate("How do I write an async function?"))
 
 ```
 
