@@ -2,7 +2,7 @@
 
 A unified interface for interacting with multiple Large Language Model (LLM) providers using a consistent and scalable API.
 
-This package abstracts differences between model providers such as OpenAI, Anthropic, AWS Bedrock, Cohere, and Ollama. It lets you write application code that is **provider-agnostic**, with support for both text and chat-style prompt formats.
+This package abstracts differences between model providers such as OpenAI, AWS Bedrock, and Ollama. It lets you write application code that is **provider-agnostic**, with support for both text and chat-style prompt formats.
 
 ---
 
