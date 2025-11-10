@@ -76,20 +76,53 @@ from llm_manager.reflection import ReflectiveLLMManager
 from llm_manager.providers import OpenAIProvider
 
 # Initialize provider
-provider = OpenAIProvider(api_key="your-openai-api-key", model="gpt-4")
 
-# Create reflection manager
-manager = ReflectiveLLMManager(provider)
+provider_name = "ollama" #openai, bedrock
+params = {"provider_name": provider_name}
+model = "nemotron-mini"
+query = "Why is the sky blue during the day?"
+if provider_name == "openai":
+    params["api_key"] = os.getenv("OPENAI_API_KEY")
+    model = "gpt-4o-mini" # model to be used. 
+elif provider_name == "anthropic":
+    params["api_key"] = os.getenv("ANTHROPIC_API_KEY")
+elif provider_name == "bedrock":
+    params["aws_access_key_id"] = os.getenv("AWS_ACCESS_KEY_ID")
+    params["aws_secret_access_key"] = os.getenv("AWS_SECRET_ACCESS_KEY")
+    params["region_name"] = os.getenv("AWS_REGION")
+    model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+elif provider_name == "ollama":
+    params["base_url"] = os.getenv("OLLAMA_BASE_URL")
+    model = "nemotron-mini"
+else:
+    raise UnknownProviderError(f"Unsupported provider: {provider_name}")
 
-# Run reflection
-response = manager.reflect(
-    user_query="Explain quantum entanglement in simple terms.",
-    reflection_strategy="self_critique",
+params["system_prompt"] = system_prompt
+client = LLMFactory.get_client(**params)
+
+## Without reflection
+response_without_reflection = client.generate(query)
+print(json.dumps(response_without_reflection), indent=4)
+
+
+# For reflection
+reflecton_manager = ReflectiveLLMManager(llm_client=client)
+llm_config = {"model": model, 'max_tokens': 2048, "temperature" : 0.5}
+
+
+reflection_response = reflecton_manager.reflect(
+    user_query=query,
+    reflection_strategy="adversarial",
     num_iterations=3,
-    context_strategy="recent",
-)
+    kwargs
 
-print(response)
+response_dictionary = reflection_response.model_dump()
+iterations = response_dictionary.get('iterations')
+
+for i, iteration in enumerate(iterations):
+    print(f"Step: {i+1}\n")
+    print(f"Prompt: {iteration.get('prompt')}\n\n")
+    print(f"Response: {iteration.get('response')}\n\n")
 ```
 
 ## Comparing Providers
