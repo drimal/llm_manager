@@ -4,19 +4,24 @@ A unified interface for interacting with multiple Large Language Model (LLM) pro
 
 This package abstracts differences between model providers such as OpenAI, AWS Bedrock, and Ollama. It lets you write application code that is **provider-agnostic**, with support for both text and chat-style prompt formats.
 
+
 ---
 
 ## Features
 
-- 🔁 Consistent interface across LLM providers
-- 🧱 Plug-and-play provider architecture
-- ⚙️ Factory-based initialization
-- 🔒 System-level prompt support
-- 📦 Built-in clients for:
+- Consistent interface across LLM providers
+- Plug-and-play provider architecture
+- Factory-based initialization
+- System-level prompt support
+- Built-in clients for:
   - OpenAI
   - AWS Bedrock
   - Ollama
-- 💡 Easy extensibility for new/custom providers
+  - Easy extensibility for new/custom providers
+
+## Reflection Prompting
+
+The reflection module enables iterative refinement of model outputs. After an initial generation, the model can "reflect" on its own response across multiple iterations using configurable reflection strategies (e.g., critique, self-improve, summarize) . This helps produce more coherent, accurate, and self-corrected answers.
 
 ---
 
@@ -25,9 +30,8 @@ This package abstracts differences between model providers such as OpenAI, AWS B
 ```bash
 pip install llm-manager
 ```
-(If publishing to PyPI, replace this with exact instructions)
-
 ⸻
+
 
 # Quick Start
 
@@ -43,6 +47,31 @@ client = LLMFactory.get_client(
 response = client.generate(prompt="What is reinforcement learning?")
 print(response["text")
 ```
+
+## Using Reflection Prompting
+
+The reflection module allows you to iteratively refine model outputs through multiple reflection steps.
+
+```python
+from llm_manager.reflection import ReflectiveLLMManager
+from llm_manager.providers import OpenAIProvider
+
+# Initialize provider
+provider = OpenAIProvider(api_key="your-openai-api-key", model="gpt-4")
+
+# Create reflection manager
+manager = ReflectiveLLMManager(provider)
+
+# Run reflection
+response = manager.reflect(
+    user_query="Explain quantum entanglement in simple terms.",
+    reflection_strategy="self_critique",
+    num_iterations=3,
+    context_strategy="recent",
+)
+
+print(response)
+```
 ⸻
 
 # Using System Prompts
@@ -53,7 +82,7 @@ from llm_manager.factory import LLMFactory
 client = LLMFactory.get_client(
     provider_name="ollama",
     base_url="http://localhost:11434",
-    model="llama2",
+    model="nemotron_mini",
     system_prompt="You are an expert Python software engineer."
 )
 
@@ -129,4 +158,4 @@ Contributions are welcome! Please create a pull request or open an issue for bug
 Acknowledgments
 This project was built to reduce duplicate effort across LLM integration projects and streamline experimentation with different models.
 
----
+---</file>
