@@ -212,17 +212,8 @@ pip install -e .
 pytest
 
 ```
-⸻
 
-License
 
-MIT License. See LICENSE file for more details.
-
-Contributing
-
-Contributions are welcome! Please create a pull request or open an issue for bug reports and feature requests.
-
-⸻
 
 ## Version Compatibility and Dependencies
 
@@ -236,3 +227,15 @@ Ensure these packages are installed and compatible with your environment for smo
 
 Acknowledgments
 This project was built to reduce duplicate effort across LLM integration projects and streamline experimentation with different models.
+
+⸻
+
+## License
+
+MIT License. See LICENSE file for more details.
+
+## Contributing
+
+Contributions are welcome! Please create a pull request or open an issue for bug reports and feature requests.
+
+⸻
