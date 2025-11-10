@@ -13,6 +13,9 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.40.64",
+    "jupyter>=1.1.1",
+    "lab>=8.5",
+    "lag>=0.0.3",
     "openai>=2.6.1",
     "python-dotenv>=1.2.1",
 ]
@@ -20,3 +23,8 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]

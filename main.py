@@ -1,6 +1,7 @@
 from llm_manager.factory import LLMFactory
 from llm_manager.exceptions import UnknownProviderError
-from llm_manager.prompts.prompts import system_prompt
+from llm_manager.prompts.prompt_library import system_prompt
+from llm_manager.reflection import ReflectiveLLMManager
 import os
 import sys
 from dotenv import load_dotenv
@@ -46,13 +47,18 @@ def main(args):
 
     params["system_prompt"] = system_prompt
     client = LLMFactory.get_client(**params)
+    reflecton_manager = ReflectiveLLMManager(llm_client=client)
     llm_config = {"model": model}
 
-    response = client.generate(prompt=query, **llm_config)
+    response = reflecton_manager.reflect(
+        user_query=query,
+        reflection_strategy="self_critique",
+        num_iterations=3
+    )
     return response
 
 
 if __name__ == "__main__":
     args = parse_arguments()
     response = main(args)
-    print(json.dumps(response.model_dump(), indent=4))
+    print(response.model_dump_json(), indent=4)
