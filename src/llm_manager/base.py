@@ -13,3 +13,5 @@ class BaseLLMClient(ABC):
     def generate(self, prompt: str, **kwargs: Any) -> str:
         """Given a prompt, generate a text response."""
         raise NotImplementedError
+
+
