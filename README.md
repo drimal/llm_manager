@@ -148,7 +148,7 @@ for config in providers:
 
 # Using System Prompts
 
-System prompts allow you to specify consistent persona or context for all model interactions.
+System prompts allow you to specify a consistent persona or context for all model interactions.
 ```python
 from llm_manager.factory import LLMFactory
 client = LLMFactory.get_client(
@@ -223,13 +223,12 @@ class MyProviderClient(BaseLLMClient):
 ---
 
 # Roadmap
-    * Add async support
-    * Structured output parsing (Pydantic models)
-    * Support for streaming/real-time tokens
-    * Expanded Bedrock model support detection
-	* CLI utility for testing providers
-    * Add support for context strategies (How much prior context is included during reflection? e.g. recent, full, none)
-
+* Add async support
+* Structured output parsing (Pydantic models)
+* Support for streaming/real-time tokens
+* Expanded Bedrock model support detection
+* CLI utility for testing providers
+* Add support for context strategies (How much prior context is included during reflection? e.g. recent, full, none)
 
 ⸻
 
@@ -240,7 +239,6 @@ class MyProviderClient(BaseLLMClient):
 git clone https://github.com/yourname/llm-manager.git
 cd llm-manager
 pip install -e .
-
 
 # Run tests:
 
