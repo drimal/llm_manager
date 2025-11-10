@@ -14,7 +14,7 @@ class OllamaClient(BaseLLMClient):
     def __init__(
         self,
         base_url: str,
-        system_prompt: str = "You are a helpful assistant.",
+        system_prompt: str = "You are a helpful assistant.",   
     ):
         self.system_prompt = system_prompt
         self.client = OpenAI(base_url=base_url, api_key="ollama")
@@ -62,3 +62,5 @@ class OllamaClient(BaseLLMClient):
         except LLMProviderError as e:
             logger.error(f"Error: {e}")
             raise LLMProviderError(f"Error: {e}")
+
+    
