@@ -146,16 +146,18 @@ To facilitate troubleshooting and improve transparency, LLM Manager supports log
 Example to inspect reflection history:
 
 ```python
-response, history = manager.reflect(
+reflection_response = manager.reflect(
     user_query="Explain recursion.",
     reflection_strategy="self_improve",
     num_iterations=2,
     return_history=True
 )
-
-print("Reflection History:")
-for step, output in enumerate(history):
-    print(f"Iteration {step+1}: {output}")
+reflection_response_dict = response.model_dump()
+iterations = reflection_response_dict.get('iterations')
+for i, iteration in enumerate(iterations):
+    print(f"Step: {i+1}\n")
+    print(f"Prompt: {iteration.get('prompt')}\n\n")
+    print(f"Response: {iteration.get('response')}\n\n")
 ```
 
 To enable verbose logging globally, set the environment variable or configure the logger in your application:
