@@ -40,8 +40,8 @@ Initial Generation → Reflection Step 1 → Reflection Step 2 → ... → Final
 ### Available Reflection
 
 | Strategy Type       | Options                  | Description                                      |
-|---------------------|--------------------------|------------------------------------------------|
-| Reflection Strategy  | critique, self_critique, self_improve, summarize | Different methods for iterative output refinement |
+|:---------------------:|:--------------------------:|:------------------------------------------------:|
+| Reflection Strategy  | self_critique, altenative_genertion, confidence_assessment, verification, adversarial| Different methods for iterative output refinement |
 
 
 ## Installation
