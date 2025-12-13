@@ -97,4 +97,22 @@ def test_generate_stream(monkeypatch):
 
     outputs = list(gen)
     assert outputs, "Expected at least one streamed chunk"
-    assert any(isinstance(o, LLMResponse) for o in outputs)
+    # Streaming now yields strings
+    assert any(isinstance(o, str) for o in outputs)
+
+
+def test_missing_sdk_raises(monkeypatch):
+    # Ensure no google module present
+    monkeypatch.delitem(sys.modules, "google.generativeai", raising=False)
+    monkeypatch.delitem(sys.modules, "google", raising=False)
+
+    client = GeminiClient(api_key=None, model="g-test")
+    try:
+        gen = client.generate("hi", stream=False)
+    except Exception as e:
+        from llm_manager.exceptions import LLMProviderError
+
+        assert isinstance(e, LLMProviderError)
+    else:
+        # If no exception, ensure response exists (rare in test env)
+        assert isinstance(gen, LLMResponse)

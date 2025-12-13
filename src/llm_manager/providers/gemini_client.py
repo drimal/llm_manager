@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, Generator, Optional
 
+from ..base import BaseLLMClient
 from ..utils import LLMResponse, normalize_usage
+from ..exceptions import LLMProviderError
 from ..retry import retry_call
 from ..rate_limit import RateLimiter
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-class GeminiClient:
+class GeminiClient(BaseLLMClient):
     """Minimal Gemini client wrapper.
 
     This tries to lazy-import Google's Generative AI library (`google.generativeai`).
@@ -18,7 +23,8 @@ class GeminiClient:
     and normalization of usage into `LLMResponse`.
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-1.5", **kwargs: Any):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-1.5", system_prompt: str = "You are a helpful assistant", **kwargs: Any):
+        super().__init__(system_prompt=system_prompt)
         self._api_key = api_key
         self.model = model
         self._client = None
@@ -30,12 +36,15 @@ class GeminiClient:
         try:
             import google.generativeai as genai  # type: ignore
         except Exception as exc:  # pragma: no cover - depends on SDK availability
-            raise ImportError(
-                "google.generativeai is required for GeminiClient. Install with `pip install google-generativeai`"
-            ) from exc
+            # Use project exception for consistency across providers
+            raise LLMProviderError("google-generativeai SDK not installed (pip install google-generativeai)") from exc
 
         if self._api_key:
-            genai.configure(api_key=self._api_key)
+            try:
+                genai.configure(api_key=self._api_key)
+            except Exception:
+                # Some SDK versions may not expose configure; ignore if so
+                logger.debug("genai.configure failed or not present; continuing")
 
         self._client = genai
 
@@ -91,16 +100,14 @@ class GeminiClient:
             return LLMResponse(text=text or "", usage=usage_dict, stop_reason=None)
 
         if stream:
-            # Return a generator created by a nested function so this outer
-            # function is not a generator (allowing non-stream returns).
             def _stream_gen():
                 try:
                     self._ensure_client()
                     client = self._client
-                    rate_limiter_local = rate_limit
-                    if rate_limiter_local is not None:
-                        rate_limiter_local.acquire()
+                    if rate_limit is not None:
+                        rate_limit.acquire()
 
+                    # If SDK offers a streaming iterator, yield text chunks (strings)
                     if hasattr(client, "chat") and hasattr(client.chat.completions, "stream"):
                         for chunk in client.chat.completions.stream(
                             model=self.model,
@@ -110,23 +117,26 @@ class GeminiClient:
                             **self._init_kwargs,
                             **kwargs,
                         ):
-                            text = getattr(chunk, "delta", getattr(chunk, "content", ""))
-                            usage_raw = getattr(chunk, "usage", {}) or {}
-                            usage = normalize_usage(usage_raw, provider="gemini")
-                            yield LLMResponse(text=str(text or ""), usage=usage, stop_reason=None)
-                        # After stream completes, yield final combined response
-                        final = _call_once()
-                        yield final
+                            try:
+                                # delta-based content
+                                yield chunk.candidates[0].delta.get("content", "")
+                            except Exception:
+                                try:
+                                    yield getattr(chunk, "text", "")
+                                except Exception:
+                                    continue
                         return
-                    else:
-                        # No streaming support; fall back to single response but yield it once for compatibility
-                        resp = retry_call(_call_once, retries=retry)
-                        yield resp
-                        return
-                except Exception:
-                    # On streaming errors, fall back to non-streaming response
+
+                    # Fallback: no streaming support; yield single string
                     resp = retry_call(_call_once, retries=retry)
-                    yield resp
+                    yield resp.text
+                    return
+                except LLMProviderError:
+                    raise
+                except Exception as e:
+                    logger.error(f"Gemini streaming error: {e}")
+                    resp = retry_call(_call_once, retries=retry)
+                    yield resp.text
                     return
 
             return _stream_gen()
