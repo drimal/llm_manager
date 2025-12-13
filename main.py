@@ -47,10 +47,10 @@ def main(args):
 
     params["system_prompt"] = system_prompt
     client = LLMFactory.get_client(**params)
-    reflecton_manager = ReflectiveLLMManager(llm_client=client)
+    reflection_manager = ReflectiveLLMManager(llm_client=client)
     llm_config = {"model": model}
 
-    response = reflecton_manager.reflect(
+    response = reflection_manager.reflect(
         user_query=query,
         reflection_strategy="self_critique",
         num_iterations=3

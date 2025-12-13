@@ -13,11 +13,10 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.40.64",
-    "jupyter>=1.1.1",
-    "lab>=8.5",
-    "lag>=0.0.3",
+    "anthropic>=0.7.0",
     "openai>=2.6.1",
     "python-dotenv>=1.2.1",
+    "pydantic>=2.5.0",
 ]
 
 [build-system]
@@ -27,4 +26,20 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "ipykernel>=7.1.0",
+    "jupyter>=1.1.1",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+gemini = [
+    "google-generativeai>=1.0.0",
+]
+
+[project.optional-dependencies]
+gemini = [
+    "google-generativeai>=1.0.0",
 ]

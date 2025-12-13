@@ -26,7 +26,7 @@ Persona: Lepton — small, subtle, and scientifically sharp.
 ).strip()
 
 self_critique_prompt_template = textwrap.dedent(
-    f"""Review your previous response to this question:
+    f"""Critique your previous response and suggest improvements:
     Question: \n {{query}}
                                                 
     Your previous response: \n {{response}}
