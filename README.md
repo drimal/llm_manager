@@ -328,6 +328,7 @@ This project is actively maintained and tested. Below is a short summary of the 
 - **Providers:** `OpenAIClient`, `AnthropicClient`, `BedrockClient`, `OllamaClient`, and `GeminiClient` (Gemini is optional and lazy-imports `google-generativeai`).
 - **Validation:** `pydantic` is a required runtime dependency used for `LLMResponse` and other data models.
 - **Streaming:** Providers support streaming where the upstream SDK exposes it. Streaming yields `LLMResponse` chunks.
+- **Streaming:** Providers support streaming where the upstream SDK exposes it. Streaming yields `str` chunks (text fragments) from all providers for consistency; non-streaming calls return a single `LLMResponse` Pydantic model.
 - **Rate limiting:** Built-in `RateLimiter` utility supports token-bucket style throttling per-call via the `rate_limit` argument.
 - **Retry:** Providers use a `retry_call` helper with exponential/backoff support for transient errors.
 - **Testing:** A test suite (pytest) exists under `tests/`; run tests with your project venv Python:
@@ -346,6 +347,28 @@ pip install google-generativeai
 ```
 
 - **How to get a client:** Use the factory: see [src/llm_manager/factory.py](src/llm_manager/factory.py) and provider implementations in [src/llm_manager/providers](src/llm_manager/providers/__init__.py).
+
+### Streaming contract and reassembly
+
+All providers that support streaming yield plain string chunks (text fragments). This keeps the streaming API consistent and easy to consume with the same client code across providers.
+
+Example of reassembling streamed output:
+
+```python
+client = LLMFactory.get_client(provider_name="openai", api_key="...")
+stream = client.generate("Write a short poem.", stream=True)
+full_text = []
+for chunk in stream:
+    # chunk is a string; append and optionally display
+    print(chunk, end="", flush=True)
+    full_text.append(chunk)
+
+final = "".join(full_text)
+print("\n---\nReassembled text:\n", final)
+```
+
+If you need structured streaming data (tokens, usage per-chunk), consider using the non-streaming API and parsing the result into a structured model instead.
+
 
 If you'd like, I can also:
 - Add an explicit `extras_require`-style entry in `pyproject.toml` to document optional installs.
