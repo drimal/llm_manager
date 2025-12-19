@@ -17,6 +17,7 @@ dependencies = [
     "openai>=2.6.1",
     "python-dotenv>=1.2.1",
     "pydantic>=2.5.0",
+    "google-genai>=1.55.0",
 ]
 
 [build-system]
@@ -35,11 +36,7 @@ dev = [
     "mypy>=1.0.0",
 ]
 
-gemini = [
-    "google-generativeai>=1.0.0",
-]
-
 [project.optional-dependencies]
 gemini = [
-    "google-generativeai>=1.0.0",
+    "google-genai",
 ]

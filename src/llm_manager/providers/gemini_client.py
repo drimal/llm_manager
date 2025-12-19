@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, List, Generator, Optional
 
 from ..base import BaseLLMClient
 from ..utils import LLMResponse, normalize_usage
@@ -13,40 +13,51 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiClient(BaseLLMClient):
-    """Minimal Gemini client wrapper.
+    """Minimal Gemini client wrapper using the modern 'google-genai' SDK."""
 
-    This tries to lazy-import Google's Generative AI library (`google.generativeai`).
-    If the SDK is missing, operations will raise ImportError with an explanatory message.
-
-    The implementation follows the project's provider patterns: lazy SDK import,
-    `generate(..., stream=...)` support (best-effort), `rate_limit` and `retry` integration,
-    and normalization of usage into `LLMResponse`.
-    """
-
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-1.5", system_prompt: str = "You are a helpful assistant", **kwargs: Any):
+    def __init__(self, api_key: Optional[str] = None, system_prompt: str = "You are a helpful assistant", **kwargs: Any):
         super().__init__(system_prompt=system_prompt)
         self._api_key = api_key
-        self.model = model
         self._client = None
+        # Store extras, but we must filter them later
         self._init_kwargs = kwargs
 
     def _ensure_client(self):
         if self._client is not None:
             return
         try:
-            import google.generativeai as genai  # type: ignore
-        except Exception as exc:  # pragma: no cover - depends on SDK availability
-            # Use project exception for consistency across providers
-            raise LLMProviderError("google-generativeai SDK not installed (pip install google-generativeai)") from exc
+            # Lazy import is fine, but we need the types for validation
+            from google import genai
+        except ImportError as exc:
+            raise LLMProviderError("google-genai SDK not installed. Run: pip install google-genai") from exc
+        
+        try:
+            self._client = genai.Client(api_key=self._api_key)
+        except Exception as e:
+            raise LLMProviderError(f"Failed to initialize Gemini Client: {e}")
 
-        if self._api_key:
-            try:
-                genai.configure(api_key=self._api_key)
-            except Exception:
-                # Some SDK versions may not expose configure; ignore if so
-                logger.debug("genai.configure failed or not present; continuing")
+    def _create_safe_config(self, max_tokens: int, temperature: float, **kwargs) -> genai.types.GenerateContentConfig:
+        """Helper to filter kwargs against valid Pydantic fields to prevent crashes."""
+        from google import genai
+        from google.genai import types
 
-        self._client = genai
+        # 1. Merge init-time kwargs with request-time kwargs
+        all_kwargs = {**self._init_kwargs, **kwargs}
+
+        # 2. Introspect the Pydantic model to find valid field names
+        #    (e.g., top_p, top_k, candidate_count, stop_sequences, response_mime_type)
+        valid_keys = types.GenerateContentConfig.model_fields.keys()
+
+        # 3. Filter out anything not supported by the SDK
+        filtered_kwargs = {k: v for k, v in all_kwargs.items() if k in valid_keys}
+
+        # 4. Return the strict config object
+        return types.GenerateContentConfig(
+            max_output_tokens=max_tokens,
+            temperature=temperature,
+            system_instruction=self.system_prompt,
+            **filtered_kwargs
+        )
 
     def generate(
         self,
@@ -55,95 +66,71 @@ class GeminiClient(BaseLLMClient):
         temperature: float = 0.0,
         stream: bool = False,
         retry: int = 2,
-        rate_limit: Optional[RateLimiter] = None,
+        rate_limit: Optional[Any] = None,
         **kwargs: Any,
-    ) -> Generator[LLMResponse, None, LLMResponse] | LLMResponse:
-        """Generate text from Gemini model.
-
-        - If `stream=True` and the SDK supports streaming, yields incremental `LLMResponse` chunks.
-        - Otherwise returns a single `LLMResponse`.
-        """
-
+    ) -> Generator[LLMResponse, None, None] | LLMResponse:
+        
         def _call_once() -> LLMResponse:
             self._ensure_client()
-            # Use best-effort call shape. The `google.generativeai` module exposes
-            # `genai.chat.completions.create` or `genai.text.completions.create` depending on usage.
-            client = self._client
+            
+            # Use the safe config creator
+            config = self._create_safe_config(max_tokens, temperature, **kwargs)
 
-            request_kwargs: Dict[str, Any] = dict(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_output_tokens=max_tokens,
-                temperature=temperature,
-            )
-            request_kwargs.update(self._init_kwargs)
-            request_kwargs.update(kwargs)
+            try:
+                response = self._client.models.generate_content(
+                    model=kwargs.get["model"],
+                    contents=prompt,
+                    config=config
+                )
+            except Exception as e:
+                raise LLMProviderError(f"Gemini generation failed: {e}") from e
 
-            # Prefer chat completions if available
-            if hasattr(client, "chat") and hasattr(client.chat, "completions"):
-                resp = client.chat.completions.create(**request_kwargs)
-                # Attempt to extract text and usage
-                text = ""
-                if hasattr(resp, "candidates") and resp.candidates:
-                    text = resp.candidates[0].content if hasattr(resp.candidates[0], "content") else str(resp.candidates[0])
-                elif hasattr(resp, "message"):
-                    text = resp.message.get("content", "")
-                usage = getattr(resp, "usage", None)
-            else:
-                # Fallback to text completions API shape
-                resp = client.text.completions.create(**request_kwargs)
-                text = "".join([c.output for c in getattr(resp, "candidates", [])])
-                usage = getattr(resp, "usage", None)
+            text_content = response.text if response.text else ""
 
-            usage_raw = usage or {}
+            # Extract Usage
+            usage_raw = {}
+            if hasattr(response, "usage_metadata"):
+                usage_raw = {
+                    "prompt_tokens": response.usage_metadata.prompt_token_count,
+                    "completion_tokens": response.usage_metadata.candidates_token_count,
+                    "total_tokens": response.usage_metadata.total_token_count
+                }
+            
+            # Use your existing normalize_usage function
             usage_dict = normalize_usage(usage_raw, provider="gemini")
-            return LLMResponse(text=text or "", usage=usage_dict, stop_reason=None)
+            
+            return LLMResponse(text=text_content, usage=usage_dict, stop_reason=None)
 
         if stream:
             def _stream_gen():
+                self._ensure_client()
+                
+                if rate_limit is not None:
+                    rate_limit.acquire()
+                
+                # Use the safe config creator
+                config = self._create_safe_config(max_tokens, temperature, **kwargs)
+
                 try:
-                    self._ensure_client()
-                    client = self._client
-                    if rate_limit is not None:
-                        rate_limit.acquire()
-
-                    # If SDK offers a streaming iterator, yield text chunks (strings)
-                    if hasattr(client, "chat") and hasattr(client.chat.completions, "stream"):
-                        for chunk in client.chat.completions.stream(
-                            model=self.model,
-                            messages=[{"role": "user", "content": prompt}],
-                            max_output_tokens=max_tokens,
-                            temperature=temperature,
-                            **self._init_kwargs,
-                            **kwargs,
-                        ):
-                            try:
-                                # delta-based content
-                                yield chunk.candidates[0].delta.get("content", "")
-                            except Exception:
-                                try:
-                                    yield getattr(chunk, "text", "")
-                                except Exception:
-                                    continue
-                        return
-
-                    # Fallback: no streaming support; yield single string
-                    resp = retry_call(_call_once, retries=retry)
-                    yield resp.text
-                    return
-                except LLMProviderError:
-                    raise
+                    response_stream = self._client.models.generate_content_stream(
+                        model=kwargs.get["model"],
+                        contents=prompt,
+                        config=config
+                    )
+                    
+                    for chunk in response_stream:
+                        if chunk.text:
+                            yield chunk.text
+                            
                 except Exception as e:
-                    logger.error(f"Gemini streaming error: {e}")
+                    # Log error, then fallback to non-streaming retry logic
+                    # logger.error(f"Gemini streaming error: {e}") 
                     resp = retry_call(_call_once, retries=retry)
                     yield resp.text
-                    return
 
             return _stream_gen()
 
-        # non-streaming
         if rate_limit is not None:
             with rate_limit:
                 return retry_call(_call_once, retries=retry)
         return retry_call(_call_once, retries=retry)
-
