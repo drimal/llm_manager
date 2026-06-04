@@ -1,0 +1,60 @@
+# Provider environment variable mappings
+providers:
+  openai:
+    env_vars:
+      api_key: OPENAI_API_KEY
+  
+  anthropic:
+    env_vars:
+      api_key: ANTHROPIC_API_KEY
+  
+  bedrock:
+    env_vars:
+      aws_access_key_id: AWS_ACCESS_KEY_ID
+      aws_secret_access_key: AWS_SECRET_ACCESS_KEY
+      region_name: AWS_REGION
+  
+  ollama:
+    env_vars:
+      base_url: OLLAMA_BASE_URL
+
+# Model definitions
+models:
+  # OpenAI models
+  gpt4o-mini:
+    provider: openai
+    model_name: gpt-4o-mini
+    tags: [fast, cheap, openai]
+  
+  gpt4o:
+    provider: openai
+    model_name: gpt-4o
+    tags: [capable, openai]
+  
+  # Anthropic models
+  claude-sonnet:
+    provider: anthropic
+    model_name: claude-3-5-sonnet-20241022
+    tags: [capable, anthropic]
+  
+  claude-haiku:
+    provider: anthropic
+    model_name: claude-3-5-haiku-20241022
+    tags: [fast, cheap, anthropic]
+  
+  # Bedrock models
+  claude-sonnet-bedrock:
+    provider: bedrock
+    model_name: anthropic.claude-3-5-sonnet-20241022-v2:0
+    tags: [capable, anthropic, bedrock]
+  
+  # Ollama models
+  nemotron:
+    provider: ollama
+    model_name: nemotron-mini
+    tags: [local, fast]
+  
+  gpt-oss:
+    provider: ollama
+    model_name: gpt-oss:120b-cloud
+    tags: [local, capable]

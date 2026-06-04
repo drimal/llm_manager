@@ -1,21 +1,11 @@
-.venv
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.env
-.env.*
-/.vscode/
-.mypy_cache/
-/.pytest_cache/
-# Python-generated files
+# Byte-compiled / optimized / cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Distribution / packaging
 build/
 develop-eggs/
 dist/
@@ -28,7 +18,6 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -36,44 +25,45 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
+.venv/
 venv/
 ENV/
 env/
-.venv
 
-# IDE
+# Testing / coverage / typing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environments / secrets
+.env
+.env.*
+
+# IDE / editor
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
 
 # Logs
 *.log
 
-# uv lock file
+# Lock file (library: resolve fresh per environment)
 uv.lock
 
-# Misc
-.autoversion
+# Misc local tooling
+.autoversion/
