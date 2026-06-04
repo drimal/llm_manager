@@ -75,11 +75,6 @@ class AnthropicClient(BaseLLMClient):
                 period = rate_conf.get("period", 60)
                 rate_limiter = RateLimiter(calls=calls, period=period)
 
-            if self._client is None:
-                if anthropic is None:
-                    raise LLMProviderError("anthropic library is not installed")
-                self._client = anthropic.Anthropic(api_key=self._api_key)
-
             # Anthropic supports streaming via incremental responses; if stream requested, yield chunks
             if kwargs.get("stream"):
                 def _stream_generator():

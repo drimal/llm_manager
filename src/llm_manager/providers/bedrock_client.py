@@ -71,7 +71,7 @@ class BedrockClient(BaseLLMClient):
             "maxTokens": kwargs.get("max_tokens", 512),
         }
         additional_model_fields = {"top_k": kwargs.get("top_k", 100)}
-        tool_config = {"tools": kwargs.get("tools", [])}
+        tools = kwargs.get("tools", [])
 
         new_kwargs = {
             "system": system_message,
@@ -80,9 +80,9 @@ class BedrockClient(BaseLLMClient):
             "inferenceConfig": inference_params,
             "additionalModelRequestFields": additional_model_fields,
         }
-        # Include toolConfig only when it's not None
-        if tool_config is not None:
-            new_kwargs["toolConfig"] = tool_config
+        # Bedrock rejects an empty toolConfig; only include it when tools are provided.
+        if tools:
+            new_kwargs["toolConfig"] = {"tools": tools}
         logger.debug(f"LLM Request: {new_kwargs}")
         try:
             if self._client is None:

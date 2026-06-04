@@ -36,9 +36,8 @@ class GeminiClient(BaseLLMClient):
         except Exception as e:
             raise LLMProviderError(f"Failed to initialize Gemini Client: {e}")
 
-    def _create_safe_config(self, max_tokens: int, temperature: float, **kwargs) -> genai.types.GenerateContentConfig:
+    def _create_safe_config(self, max_tokens: int, temperature: float, **kwargs: Any) -> Any:
         """Helper to filter kwargs against valid Pydantic fields to prevent crashes."""
-        from google import genai
         from google.genai import types
 
         # 1. Merge init-time kwargs with request-time kwargs
@@ -70,15 +69,17 @@ class GeminiClient(BaseLLMClient):
         **kwargs: Any,
     ) -> Generator[LLMResponse, None, None] | LLMResponse:
         
+        model = kwargs.pop("model", "gemini-1.5-flash")
+
         def _call_once() -> LLMResponse:
             self._ensure_client()
-            
+
             # Use the safe config creator
             config = self._create_safe_config(max_tokens, temperature, **kwargs)
 
             try:
                 response = self._client.models.generate_content(
-                    model=kwargs.get["model"],
+                    model=model,
                     contents=prompt,
                     config=config
                 )
@@ -113,7 +114,7 @@ class GeminiClient(BaseLLMClient):
 
                 try:
                     response_stream = self._client.models.generate_content_stream(
-                        model=kwargs.get["model"],
+                        model=model,
                         contents=prompt,
                         config=config
                     )

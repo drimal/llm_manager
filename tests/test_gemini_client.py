@@ -1,118 +1,75 @@
+"""Tests for the Gemini provider client.
+
+These mock the modern ``google-genai`` SDK by replacing ``genai.Client`` with a
+fake. The real ``google.genai.types.GenerateContentConfig`` is used so that the
+client's config-filtering logic is exercised against the actual SDK schema.
+"""
+
 import sys
-import types
+import types as pytypes
+
+import pytest
 
 from llm_manager.providers.gemini_client import GeminiClient
 from llm_manager.utils import LLMResponse
+from llm_manager.exceptions import LLMProviderError
+
+genai = pytest.importorskip("google.genai")
 
 
-def _make_fake_genai_nonstream():
-    genai = types.SimpleNamespace()
-
-    class Candidate:
-        def __init__(self, content):
-            self.content = content
-
-    class Resp:
-        def __init__(self):
-            self.candidates = [Candidate("Hello from Gemini")]
-            self.usage = {"tokens": 10}
-
-    class Completions:
-        @staticmethod
-        def create(**kwargs):
-            return Resp()
-
-        @staticmethod
-        def stream(**kwargs):
-            if False:
-                yield None
-
-    chat = types.SimpleNamespace(completions=Completions())
-    genai.chat = chat
-
-    def configure(api_key=None):
-        setattr(genai, "_configured", True)
-
-    genai.configure = configure
-    return genai
+class _FakeUsage:
+    prompt_token_count = 10
+    candidates_token_count = 20
+    total_token_count = 30
 
 
-def _make_fake_genai_stream():
-    genai = types.SimpleNamespace()
+class _FakeResponse:
+    text = "Hello from Gemini"
+    usage_metadata = _FakeUsage()
 
-    class Chunk:
-        def __init__(self, delta=None, content=None, usage=None):
-            self.delta = delta
-            self.content = content
-            self.usage = usage
 
-    class Completions:
-        @staticmethod
-        def create(**kwargs):
-            r = types.SimpleNamespace()
-            r.candidates = [types.SimpleNamespace(content="Final text")]
-            r.usage = {"tokens": 5}
-            return r
+class _FakeModels:
+    def generate_content(self, model, contents, config):
+        return _FakeResponse()
 
-        @staticmethod
-        def stream(**kwargs):
-            yield Chunk(delta="Hello ")
-            yield Chunk(delta="world")
-            yield Chunk(delta="", content="", usage={"tokens": 3})
+    def generate_content_stream(self, model, contents, config):
+        for part in ("Hello ", "world"):
+            yield pytypes.SimpleNamespace(text=part)
 
-    chat = types.SimpleNamespace(completions=Completions())
-    genai.chat = chat
-    genai.configure = lambda api_key=None: None
-    return genai
+
+class _FakeClient:
+    def __init__(self, *args, **kwargs):
+        self.models = _FakeModels()
 
 
 def test_generate_non_stream(monkeypatch):
-    fake = _make_fake_genai_nonstream()
-    # Ensure both package and submodule entries exist so `import google.generativeai` works
-    import types as _types
+    monkeypatch.setattr(genai, "Client", _FakeClient)
 
-    pkg = _types.ModuleType("google")
-    setattr(pkg, "generativeai", fake)
-    monkeypatch.setitem(sys.modules, "google", pkg)
-    monkeypatch.setitem(sys.modules, "google.generativeai", fake)
-
-    client = GeminiClient(api_key="x", model="g-test")
-    resp = client.generate("hi there", stream=False)
+    client = GeminiClient(api_key="x")
+    resp = client.generate("hi there", model="gemini-1.5-flash", stream=False)
 
     assert isinstance(resp, LLMResponse)
-    assert "Hello from Gemini" in resp.text
+    assert resp.text == "Hello from Gemini"
+    assert resp.usage["input_tokens"] == 10
+    assert resp.usage["output_tokens"] == 20
+    assert resp.usage["total_tokens"] == 30
 
 
 def test_generate_stream(monkeypatch):
-    fake = _make_fake_genai_stream()
-    import types as _types
+    monkeypatch.setattr(genai, "Client", _FakeClient)
 
-    pkg = _types.ModuleType("google")
-    setattr(pkg, "generativeai", fake)
-    monkeypatch.setitem(sys.modules, "google", pkg)
-    monkeypatch.setitem(sys.modules, "google.generativeai", fake)
-
-    client = GeminiClient(api_key="x", model="g-test")
-    gen = client.generate("streaming test", stream=True)
+    client = GeminiClient(api_key="x")
+    gen = client.generate("streaming test", model="gemini-1.5-flash", stream=True)
 
     outputs = list(gen)
-    assert outputs, "Expected at least one streamed chunk"
-    # Streaming now yields strings
-    assert any(isinstance(o, str) for o in outputs)
+    assert outputs == ["Hello ", "world"]
+    assert all(isinstance(o, str) for o in outputs)
 
 
 def test_missing_sdk_raises(monkeypatch):
-    # Ensure no google module present
-    monkeypatch.delitem(sys.modules, "google.generativeai", raising=False)
-    monkeypatch.delitem(sys.modules, "google", raising=False)
+    # Simulate the SDK being absent so the import inside _ensure_client fails.
+    monkeypatch.setitem(sys.modules, "google.genai", None)
 
-    client = GeminiClient(api_key=None, model="g-test")
-    try:
-        gen = client.generate("hi", stream=False)
-    except Exception as e:
-        from llm_manager.exceptions import LLMProviderError
-
-        assert isinstance(e, LLMProviderError)
-    else:
-        # If no exception, ensure response exists (rare in test env)
-        assert isinstance(gen, LLMResponse)
+    client = GeminiClient(api_key=None)
+    with pytest.raises(LLMProviderError):
+        client.generate("hi", model="gemini-1.5-flash", stream=False)
