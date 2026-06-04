@@ -67,7 +67,13 @@ def test_generate_stream(monkeypatch):
 
 
 def test_missing_sdk_raises(monkeypatch):
-    # Simulate the SDK being absent so the import inside _ensure_client fails.
+    # Simulate the SDK being absent. `google.genai` is already imported (see the
+    # importorskip above), so simply nulling the submodule isn't enough:
+    # `from google import genai` would resolve the cached attribute on the parent
+    # package. Replace the parent `google` with a stub that lacks `genai` AND null
+    # the submodule, so the import inside _ensure_client fails deterministically.
+    stub_google = pytypes.ModuleType("google")
+    monkeypatch.setitem(sys.modules, "google", stub_google)
     monkeypatch.setitem(sys.modules, "google.genai", None)
 
     client = GeminiClient(api_key=None)

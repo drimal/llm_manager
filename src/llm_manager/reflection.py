@@ -154,7 +154,11 @@ class ReflectiveLLMManager:
                 f"Valid options: {[s.value for s in ReflectionStrategy]}"
             ) from exc
 
-        # Start with the original query (reflection always uses non-streaming).
+        # Reflection relies on inspecting each response's text and usage, so it
+        # always runs non-streaming regardless of what the caller passed.
+        kwargs.pop("stream", None)
+
+        # Start with the original query.
         previous_response = cast(LLMResponse, self.llm_client.generate(user_query, **kwargs))
 
         # Perform iterations of reflection

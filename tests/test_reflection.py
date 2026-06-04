@@ -40,6 +40,35 @@ def test_reflective_manager_basic():
     assert result.total_tokens >= 0
 
 
+class StreamingAwareClient(BaseLLMClient):
+    """Client whose generate() honors stream=True by returning an iterator.
+
+    Used to confirm reflect() never trips into streaming mode.
+    """
+
+    def generate(self, prompt: str, **kwargs):
+        if kwargs.get("stream"):
+            return iter(["chunk"])
+        return LLMResponse(
+            text="ok",
+            usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+            stop_reason=None,
+        )
+
+
+def test_reflect_ignores_stream_kwarg():
+    mgr = ReflectiveLLMManager(llm_client=StreamingAwareClient())
+    # Even though stream=True is passed, reflect() must strip it and operate on
+    # LLMResponse objects rather than an iterator.
+    result = mgr.reflect(
+        user_query="q",
+        reflection_strategy="self_critique",
+        num_iterations=1,
+        stream=True,
+    )
+    assert result.final_response == "ok"
+
+
 class TestReflectionStrategy:
     """Tests for ReflectionStrategy enum."""
 
