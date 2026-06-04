@@ -9,26 +9,25 @@ class LLMResponse(BaseModel):
     Pydantic is a required dependency for the project: this model provides
     validation and convenient serialization methods used across the codebase.
     """
+
     text: str = Field(..., description="The generated text response.")
-    usage: dict[str, int] = Field(
-        default_factory=dict, description="Normalized token usage info"
-    )
+    usage: dict[str, int] = Field(default_factory=dict, description="Normalized token usage info")
     stop_reason: str | None = Field(None, description="Stop reason")
 
 
 def normalize_usage(usage_dict: dict[str, Any], provider: str = "generic") -> dict[str, int]:
     """Normalize usage information across different providers.
-    
+
     Different providers return token counts with different key names.
     This function normalizes them to a standard format:
     - input_tokens
-    - output_tokens  
+    - output_tokens
     - total_tokens
-    
+
     Args:
         usage_dict: Raw usage dict from the provider
         provider: Name of the provider (openai, bedrock, ollama)
-        
+
     Returns:
         Dict with standardized keys: input_tokens, output_tokens, total_tokens
     """

@@ -23,8 +23,14 @@ logging.basicConfig(level=logging.INFO)
 # sensible default model for each.
 PROVIDER_SETUP = {
     "openai": (lambda: {"api_key": os.environ["OPENAI_API_KEY"]}, "gpt-4o-mini"),
-    "anthropic": (lambda: {"api_key": os.environ["ANTHROPIC_API_KEY"]}, "claude-3-5-haiku-20241022"),
-    "ollama": (lambda: {"base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")}, "llama3"),
+    "anthropic": (
+        lambda: {"api_key": os.environ["ANTHROPIC_API_KEY"]},
+        "claude-3-5-haiku-20241022",
+    ),
+    "ollama": (
+        lambda: {"base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")},
+        "llama3",
+    ),
     "gemini": (lambda: {"api_key": os.environ["GOOGLE_API_KEY"]}, "gemini-1.5-flash"),
     "bedrock": (
         lambda: {

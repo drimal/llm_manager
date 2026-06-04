@@ -46,7 +46,9 @@ class OllamaClient(BaseLLMClient):
             self._client = OpenAI(base_url=self._base_url, api_key="ollama")
         return self._client
 
-    def _build_request(self, prompt: str, params: GenerationParams, *, stream: bool) -> dict[str, Any]:
+    def _build_request(
+        self, prompt: str, params: GenerationParams, *, stream: bool
+    ) -> dict[str, Any]:
         messages = [
             {"role": "system", "content": [{"type": "text", "text": self.system_prompt}]},
             {"role": "user", "content": [{"type": "text", "text": prompt}]},

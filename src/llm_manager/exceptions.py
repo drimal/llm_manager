@@ -3,7 +3,7 @@
 
 class LLMProviderError(Exception):
     """Base exception for LLM provider errors.
-    
+
     All provider-related exceptions should inherit from this class.
     """
 
@@ -65,11 +65,15 @@ def classify_error(provider: str, exc: Exception) -> LLMProviderError:
         return AuthenticationError(message)
     if _has("rate limit", "ratelimit", "too many requests", "429", "resourceexhausted", "quota"):
         return RateLimitError(message)
-    if _has("context length", "maximum context", "token limit", "too many tokens", "context window"):
+    if _has(
+        "context length", "maximum context", "token limit", "too many tokens", "context window"
+    ):
         return TokenLimitError(message)
     if _has("connection", "timeout", "timed out", "network", "unreachable"):
         return APIConnectionError(message)
-    if _has("unavailable", "service_unavailable", "internal server", "500", "502", "503", "overloaded"):
+    if _has(
+        "unavailable", "service_unavailable", "internal server", "500", "502", "503", "overloaded"
+    ):
         return ProviderUnavailableError(message)
     if _has("invalid", "bad request", "not found", "400", "404", "validation"):
         return InvalidRequestError(message)

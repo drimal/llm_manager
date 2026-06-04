@@ -1,391 +1,246 @@
 # LLM Manager
 
-A unified interface for interacting with multiple Large Language Model (LLM) providers using a consistent and scalable API.
+A unified, **provider-agnostic** interface for multiple Large Language Model providers.
 
-This package abstracts differences between model providers such as OpenAI, AWS Bedrock, and Ollama. It lets you write application code that is **provider-agnostic**, with support for both text and chat-style prompt formats.
-
-
----
+Write your application against one consistent API and switch between **OpenAI**,
+**Anthropic**, **AWS Bedrock**, **Ollama**, and **Google Gemini** without changing
+your code. Provider SDKs are optional extras, so you only install what you use.
 
 ## Features
 
-- Consistent interface across LLM providers
-- Plug-and-play provider architecture
-- Factory-based initialization
-- System-level prompt support
-- Built-in clients for:
-  - OpenAI
-  - AWS Bedrock
-  - Ollama
-  - Easy extensibility for new/custom providers
-
-## Conceptual Overview
-
-LLM Manager provides a factory-based initialization that abstracts the creation of provider-specific clients, enabling a unified interface to interact with various LLM providers seamlessly. Users instantiate clients through the factory by specifying provider details, after which they can generate text or chat completions without worrying about provider-specific APIs. For advanced use cases, the reflection loop allows iterative refinement of model outputs through configurable strategies, enhancing response quality by enabling the model to critique and improve its own answers.
-
-## Reflection Prompting
-
-The reflection module enables iterative refinement of model outputs. After an initial generation, the model can "reflect" on its own response across multiple iterations using configurable reflection strategies (e.g., critique, self-improve, summarize). This helps produce more coherent, accurate, and self-corrected answers.
-
-### Reflection Flow Diagram
-
-```
-User Query
-     ↓
-Initial Generation → Reflection Step 1 → Reflection Step 2 → ... → Final Output
-                      ↑                ↑
-          Reflection Strategy Applied  Reflection Strategy Applied
-```
-
-### Available Reflection
-
-| Strategy Type       | Options                  | Description                                      |
-|:---------------------:|:--------------------------:|:------------------------------------------------:|
-| Reflection Strategy  | self_critique, altenative_genertion, confidence_assessment, verification, adversarial| Different methods for iterative output refinement |
-
+- One consistent interface (`generate`) across every provider
+- Factory-based, lazy client creation — no provider SDK is imported until needed
+- Optional per-provider dependencies (`pip install 'llm-manager[openai]'`)
+- Standardized `LLMResponse` (text + normalized token usage) via Pydantic
+- Uniform **streaming** contract: streaming yields plain `str` chunks
+- Built-in **retry** with exponential backoff and **rate limiting** (token bucket)
+- Provider-agnostic **exception hierarchy** (auth, rate-limit, token-limit, …)
+- A **reflection** loop for iterative self-critique and refinement
+- A YAML **model registry** to map friendly model ids to providers/credentials
+- Fully type-hinted (`py.typed`)
 
 ## Installation
 
 ```bash
-pip install llm-manager
-```
-⸻
-
-
-# Quick Start
-
-```python
-from llm_manager.factory import LLMFactory
-
-# Create an OpenAI client
-client = LLMFactory.get_client(
-    provider_name="openai",
-    api_key="your-openai-api-key",
-    model="gpt-4"
-)
-response = client.generate(prompt="What is reinforcement learning?")
-print(response["text")
+pip install llm-manager                 # core only (no provider SDKs)
+pip install 'llm-manager[openai]'       # + OpenAI
+pip install 'llm-manager[anthropic]'    # + Anthropic
+pip install 'llm-manager[bedrock]'      # + AWS Bedrock (boto3)
+pip install 'llm-manager[gemini]'       # + Google Gemini (google-genai)
+pip install 'llm-manager[ollama]'       # + Ollama (uses the OpenAI SDK)
+pip install 'llm-manager[all]'          # everything
 ```
 
-Streaming and Rate-limiting Example
+Requires Python 3.11+.
+
+## Quick start
 
 ```python
-from llm_manager.factory import LLMFactory
+from llm_manager import LLMFactory
 
-# Create client (OpenAI example)
-client = LLMFactory.get_client(
-    provider_name="openai",
-    api_key="your-openai-api-key",
-    system_prompt="You are a helpful assistant"
+client = LLMFactory.get_client(provider_name="openai", api_key="sk-...")
+
+response = client.generate("What is reinforcement learning?", model="gpt-4o-mini")
+print(response.text)
+print(response.usage)   # {"input_tokens": ..., "output_tokens": ..., "total_tokens": ...}
+```
+
+Switching providers is just different constructor arguments:
+
+```python
+anthropic = LLMFactory.get_client(provider_name="anthropic", api_key="sk-ant-...")
+ollama    = LLMFactory.get_client(provider_name="ollama", base_url="http://localhost:11434/v1")
+gemini    = LLMFactory.get_client(provider_name="gemini", api_key="...")
+bedrock   = LLMFactory.get_client(
+    provider_name="bedrock",
+    aws_access_key_id="...", aws_secret_access_key="...", region_name="us-east-1",
 )
+```
 
-# Streaming example: iterate chunks
-stream = client.generate("Tell me a short story.", stream=True)
-for chunk in stream:
+## The `generate` API
+
+```python
+client.generate(
+    prompt,
+    model=None,            # provider default used if omitted
+    temperature=0.0,
+    max_tokens=512,
+    top_p=1.0,
+    stop=None,
+    tools=None,
+    stream=False,          # True -> returns an iterator of str chunks
+    rate_limit=None,       # {"calls": 60, "period": 60} or a RateLimiter
+    retries=3,
+    backoff=1.0,
+    **provider_specific,   # forwarded to the provider (e.g. top_k for Bedrock/Gemini)
+)
+```
+
+Non-streaming calls return an `LLMResponse`; streaming calls return an iterator of
+text fragments.
+
+### Streaming
+
+All providers yield plain string chunks, so reassembly is identical everywhere:
+
+```python
+parts = []
+for chunk in client.generate("Write a short poem.", model="gpt-4o-mini", stream=True):
     print(chunk, end="", flush=True)
+    parts.append(chunk)
+full_text = "".join(parts)
+```
 
-# Rate limiting example: allow 120 calls per 60 seconds
+### Rate limiting
+
+```python
 resp = client.generate(
-    "Summarize the plot of Dune",
-    rate_limit={"calls": 120, "period": 60}
+    "Summarize the plot of Dune.",
+    model="gpt-4o-mini",
+    rate_limit={"calls": 120, "period": 60},  # 120 calls per 60 seconds
 )
-print(resp.text)
 ```
 
-## Google Gemini (optional)
+## Model registry (`from_model_id`)
 
-If you have Google's Generative AI SDK installed (`google-generativeai`), you can use the Gemini provider via the factory. The SDK is optional — the package exposes `GeminiClient` lazily and will raise a clear ImportError if the dependency is missing.
+Define friendly model ids in a YAML file (see [`examples/config.yaml`](examples/config.yaml)):
 
-```python
-from llm_manager.factory import LLMFactory
-
-# Create a Gemini client (optional dependency: google-generativeai)
-client = LLMFactory.get_client(
-    provider_name="gemini",
-    api_key="YOUR_GOOGLE_API_KEY",
-    model="gemini-1.5"
-)
-
-# Non-streaming:
-resp = client.generate("Write a two-sentence sci-fi microstory.")
-print(resp.text)
-
-# Streaming example (yields LLMResponse chunks):
-stream = client.generate("Stream a short poem.", stream=True)
-for chunk in stream:
-    # Each `chunk` is an `LLMResponse` Pydantic model; use `.text`
-    print(chunk.text, end="", flush=True)
+```yaml
+providers:
+  anthropic:
+    env_vars:
+      api_key: ANTHROPIC_API_KEY
+models:
+  claude-haiku:
+    provider: anthropic
+    model_name: claude-3-5-haiku-20241022
+    tags: [fast, cheap]
 ```
 
-
-## Using Reflection Prompting
-
-The reflection module allows you to iteratively refine model outputs through multiple reflection steps.
+Then resolve a fully-configured client (credentials pulled from the environment,
+resolved model name set as the client default):
 
 ```python
-from llm_manager.reflection import ReflectiveLLMManager
-from llm_manager.providers import OpenAIProvider
+from llm_manager import LLMFactory
 
-# Initialize provider
+client = LLMFactory.from_model_id("claude-haiku", "examples/config.yaml")
+print(client.generate("Summarize reflection prompting in one sentence.").text)
+```
 
-provider_name = "ollama" #openai, bedrock
-params = {"provider_name": provider_name}
-model = "nemotron-mini"
-query = "Why is the sky blue during the day?"
-if provider_name == "openai":
-    params["api_key"] = os.getenv("OPENAI_API_KEY")
-    model = "gpt-4o-mini" # model to be used. 
-elif provider_name == "anthropic":
-    params["api_key"] = os.getenv("ANTHROPIC_API_KEY")
-elif provider_name == "bedrock":
-    params["aws_access_key_id"] = os.getenv("AWS_ACCESS_KEY_ID")
-    params["aws_secret_access_key"] = os.getenv("AWS_SECRET_ACCESS_KEY")
-    params["region_name"] = os.getenv("AWS_REGION")
-    model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-elif provider_name == "ollama":
-    params["base_url"] = os.getenv("OLLAMA_BASE_URL")
-    model = "nemotron-mini"
-else:
-    raise UnknownProviderError(f"Unsupported provider: {provider_name}")
+## Reflection prompting
 
-params["system_prompt"] = system_prompt
-client = LLMFactory.get_client(**params)
+Iteratively critique and improve a response.
 
-## Without reflection
-response_without_reflection = client.generate(query)
-print(json.dumps(response_without_reflection), indent=4)
+```
+User Query → Initial Generation → Reflection 1 → Reflection 2 → … → Final Output
+```
 
+```python
+from llm_manager import LLMFactory, ReflectiveLLMManager
 
-# For reflection
-reflecton_manager = ReflectiveLLMManager(llm_client=client)
-llm_config = {"model": model, 'max_tokens': 2048, "temperature" : 0.5}
+client = LLMFactory.get_client(provider_name="openai", api_key="sk-...")
+manager = ReflectiveLLMManager(llm_client=client)
 
-
-reflection_response = reflecton_manager.reflect(
-    user_query=query,
-    reflection_strategy="adversarial",
+result = manager.reflect(
+    user_query="Why is the sky blue during the day?",
+    reflection_strategy="self_critique",
     num_iterations=3,
-    kwargs
-
-response_dictionary = reflection_response.model_dump()
-iterations = response_dictionary.get('iterations')
-
-for i, iteration in enumerate(iterations):
-    print(f"Step: {i+1}\n")
-    print(f"Prompt: {iteration.get('prompt')}\n\n")
-    print(f"Response: {iteration.get('response')}\n\n")
-```
-
-## Comparing Providers
-
-You can easily compare outputs from multiple providers using the factory interface. Here's an example that runs the same query across OpenAI and Ollama providers:
-
-```python
-from llm_manager.factory import LLMFactory
-
-query = "What are the benefits of renewable energy?"
-
-providers = [
-    {"provider_name": "openai", "api_key": "your-openai-api-key", "model": "gpt-4"},
-    {"provider_name": "ollama", "base_url": "http://localhost:11434", "model": "nemotron_mini"},
-]
-
-for config in providers:
-    client = LLMFactory.get_client(**config)
-    response = client.generate(prompt=query)
-    print(f"Response from {config['provider_name']}:\n{response['text']}\n")
-```
-⸻
-
-# Using System Prompts
-
-System prompts allow you to specify a consistent persona or context for all model interactions.
-```python
-from llm_manager.factory import LLMFactory
-client = LLMFactory.get_client(
-    provider_name="ollama",
-    base_url="http://localhost:11434",
-    model="nemotron_mini",
-    system_prompt="You are an expert Python software engineer."
+    model="gpt-4o-mini",
 )
 
-print(client.generate("How do I write an async function?"))
-
+print(result.final_response)
+for step in result.iterations:
+    print(step["iteration"], step["response"])
 ```
 
-⸻
+Available strategies: `self_critique`, `alternative_generation`,
+`confidence_assessment`, `verification`, `adversarial`.
 
-# Supported Providers
+## Error handling
 
-|Provider | Class Name|Notes|
-|:---:|:---:|:---:|
-|OpenAI|OpenAIClient|Supports chat & text, uses openai SDK|
-|AWS Bedrock|BedrockClient|Integrates w/ boto3; flexible across models|
-|Ollama|OllamaClient|Works with locally served models|
-
-## Logging and Debugging
-
-To facilitate troubleshooting and improve transparency, LLM Manager supports logging and debugging features. You can inspect the full reflection history to understand how outputs evolved over iterations, or enable verbose output for detailed request/response logs.
-
-Example to inspect reflection history:
+Raw SDK errors are mapped to a provider-agnostic hierarchy, all subclassing
+`LLMProviderError`:
 
 ```python
-reflection_response = manager.reflect(
-    user_query="Explain recursion.",
-    reflection_strategy="self_improve",
-    num_iterations=2,
-    return_history=True
-)
-reflection_response_dict = response.model_dump()
-iterations = reflection_response_dict.get('iterations')
-for i, iteration in enumerate(iterations):
-    print(f"Step: {i+1}\n")
-    print(f"Prompt: {iteration.get('prompt')}\n\n")
-    print(f"Response: {iteration.get('response')}\n\n")
+from llm_manager import LLMProviderError, RateLimitError, AuthenticationError
+
+try:
+    client.generate("hello", model="gpt-4o-mini")
+except RateLimitError:
+    ...        # back off
+except AuthenticationError:
+    ...        # bad/missing credentials
+except LLMProviderError:
+    ...        # any other provider failure
 ```
 
-To enable verbose logging globally, set the environment variable or configure the logger in your application:
+Also available: `APIConnectionError`, `TokenLimitError`, `InvalidRequestError`,
+`ProviderUnavailableError`, `UnknownProviderError`.
+
+## Supported providers
+
+| Provider     | Class            | Extra        | Notes                                   |
+|:-------------|:-----------------|:-------------|:----------------------------------------|
+| OpenAI       | `OpenAIClient`   | `openai`     | Chat completions                        |
+| Anthropic    | `AnthropicClient`| `anthropic`  | Claude Messages API                     |
+| AWS Bedrock  | `BedrockClient`  | `bedrock`    | Converse API via `boto3`                |
+| Ollama       | `OllamaClient`   | `ollama`     | Local/remote, OpenAI-compatible API     |
+| Google Gemini| `GeminiClient`   | `gemini`     | Uses the modern `google-genai` SDK      |
+
+## Adding a new provider
+
+1. Subclass `BaseLLMClient` and implement `_complete` (and optionally `_stream`).
+2. Build the request from the shared `GenerationParams`.
+3. Register it in `LLMFactory._PROVIDERS`.
 
 ```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
+from llm_manager.base import BaseLLMClient, GenerationParams
+from llm_manager.utils import LLMResponse, normalize_usage
+from llm_manager.exceptions import classify_error
 
-This will output detailed information about API calls, prompts, and responses.
-
-# Adding a New Provider
-
-To add another LLM provider:
-	1.	Create a class that inherits from BaseLLMClient
-	2.	Implement generate()
-	3.	Register it in factory.py
-
-## Example skeleton:
-```python
 class MyProviderClient(BaseLLMClient):
-    def __init__(self, api_key: str, **kwargs):
-        super().__init__(system_prompt=kwargs.get("system_prompt"))
-        # Init here
+    _provider = "myprovider"
 
-    def generate(self, prompt: str, **kwargs) -> str:
-        # Call provider API
-        pass
-```
----
+    def __init__(self, api_key: str, system_prompt: str = "You are a helpful assistant"):
+        super().__init__(system_prompt=system_prompt)
+        self._api_key = api_key
 
-# Roadmap
-* Add async support
-* Structured output parsing (Pydantic models)
-* Support for streaming/real-time tokens
-* Expanded Bedrock model support detection
-* CLI utility for testing providers
-* Add support for context strategies (How much prior context is included during reflection? e.g. recent, full, none)
-
-⸻
-
-
-# Development
-```bash
-# Install
-git clone https://github.com/yourname/llm-manager.git
-cd llm-manager
-pip install -e .
-
-# Run tests:
-
-pytest
-
+    def _complete(self, prompt: str, params: GenerationParams) -> LLMResponse:
+        try:
+            raw = ...  # call the SDK using params.model, params.temperature, ...
+        except Exception as exc:
+            raise classify_error(self._provider, exc) from exc
+        return LLMResponse(text=..., usage=normalize_usage(..., provider=self._provider))
 ```
 
-# Installing optional Gemini SDK
+Rate limiting, retries, and streaming dispatch are handled for you by
+`BaseLLMClient.generate`.
 
-If you want to use the optional Google Gemini provider, install the package with the `gemini` extra:
+## Development
 
 ```bash
-# editable install with Gemini extras
-pip install -e '.[gemini]'
+git clone https://github.com/drimal/llm_manager.git
+cd llm_manager
+uv sync                     # or: pip install -e '.[all]' and the dev tools
 
-# or install just the SDK
-pip install google-generativeai
+uv run pytest               # tests
+uv run ruff check .         # lint
+uv run mypy                 # type-check
 ```
 
+Runnable examples live in [`examples/`](examples/).
 
+## Roadmap
 
-## Version Compatibility and Dependencies
-
-- **Python:** Supported on Python 3.9 and above.
-- **Major Dependencies:**
-  - `openai` for OpenAI provider integration
-  - `boto3` for AWS Bedrock support
-  - `requests` for HTTP communication with providers like Ollama
-
-Ensure these packages are installed and compatible with your environment for smooth operation.
-
-## Current Project Status
-
-This project is actively maintained and tested. Below is a short summary of the current state so you can get started quickly.
-
-- **Providers:** `OpenAIClient`, `AnthropicClient`, `BedrockClient`, `OllamaClient`, and `GeminiClient` (Gemini is optional and lazy-imports `google-generativeai`).
-- **Validation:** `pydantic` is a required runtime dependency used for `LLMResponse` and other data models.
-- **Streaming:** Providers support streaming where the upstream SDK exposes it. Streaming yields `LLMResponse` chunks.
-- **Streaming:** Providers support streaming where the upstream SDK exposes it. Streaming yields `str` chunks (text fragments) from all providers for consistency; non-streaming calls return a single `LLMResponse` Pydantic model.
-- **Rate limiting:** Built-in `RateLimiter` utility supports token-bucket style throttling per-call via the `rate_limit` argument.
-- **Retry:** Providers use a `retry_call` helper with exponential/backoff support for transient errors.
-- **Testing:** A test suite (pytest) exists under `tests/`; run tests with your project venv Python:
-
-```bash
-# from project root
-/path/to/venv/bin/python -m pytest -q
-```
-
-- **Optional Gemini SDK:** The `gemini` dependency group is available in `pyproject.toml` (name: `google-generativeai`). Install with extras or individually:
-
-```bash
-pip install -e .[gemini]
-# or
-pip install google-generativeai
-```
-
-- **How to get a client:** Use the factory: see [src/llm_manager/factory.py](src/llm_manager/factory.py) and provider implementations in [src/llm_manager/providers](src/llm_manager/providers/__init__.py).
-
-### Streaming contract and reassembly
-
-All providers that support streaming yield plain string chunks (text fragments). This keeps the streaming API consistent and easy to consume with the same client code across providers.
-
-Example of reassembling streamed output:
-
-```python
-client = LLMFactory.get_client(provider_name="openai", api_key="...")
-stream = client.generate("Write a short poem.", stream=True)
-full_text = []
-for chunk in stream:
-    # chunk is a string; append and optionally display
-    print(chunk, end="", flush=True)
-    full_text.append(chunk)
-
-final = "".join(full_text)
-print("\n---\nReassembled text:\n", final)
-```
-
-If you need structured streaming data (tokens, usage per-chunk), consider using the non-streaming API and parsing the result into a structured model instead.
-
-
-If you'd like, I can also:
-- Add an explicit `extras_require`-style entry in `pyproject.toml` to document optional installs.
-- Add a short integration example for using Gemini with credentials and env var hints.
-
-
-Acknowledgments
-This project was built to reduce duplicate effort across LLM integration projects and streamline experimentation with different models.
-
-⸻
-
-## License
-
-MIT License. See LICENSE file for more details.
+- Async (`agenerate`) support
+- Per-chunk streaming usage metadata
+- Expanded model registry tooling / CLI
 
 ## Contributing
 
-Contributions are welcome! Please create a pull request or open an issue for bug reports and feature requests.
+Contributions are welcome — please open an issue or pull request. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-⸻
+## License
+
+MIT — see [LICENSE](LICENSE).

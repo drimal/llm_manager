@@ -10,7 +10,10 @@ def test_factory_returns_clients_and_has_generate():
         ("openai", {"api_key": "x"}),
         ("anthropic", {"api_key": "x"}),
         ("ollama", {"base_url": "http://localhost:11434"}),
-        ("bedrock", {"region_name": "us-east-1", "aws_access_key_id": "x", "aws_secret_access_key": "y"}),
+        (
+            "bedrock",
+            {"region_name": "us-east-1", "aws_access_key_id": "x", "aws_secret_access_key": "y"},
+        ),
         ("gemini", {"api_key": "x"}),
     ]
 

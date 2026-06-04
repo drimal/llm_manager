@@ -96,7 +96,7 @@ class LLMFactory:
 
         # model_config.params are generation defaults, not constructor args;
         # drop them so they aren't passed to the client constructor.
-        for gen_key in (model_config.params or {}):
+        for gen_key in model_config.params or {}:
             ctor_params.pop(gen_key, None)
 
         ctor_params.update(overrides)

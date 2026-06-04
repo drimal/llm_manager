@@ -1,7 +1,7 @@
 """Streaming, rate-limiting, and the reflection loop.
 
-    export OPENAI_API_KEY=sk-...
-    python examples/streaming_and_reflection.py
+export OPENAI_API_KEY=sk-...
+python examples/streaming_and_reflection.py
 """
 
 from __future__ import annotations

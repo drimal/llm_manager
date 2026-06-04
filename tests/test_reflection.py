@@ -50,7 +50,7 @@ class TestReflectionStrategy:
             "alternative_generation",
             "confidence_assessment",
             "verification",
-            "adversarial"
+            "adversarial",
         ]
         actual = [s.value for s in ReflectionStrategy]
         for strategy in expected:
@@ -72,15 +72,13 @@ class TestReflectionResult:
 
     def test_result_creation(self):
         """Test creating a ReflectionResult."""
-        iterations = [
-            {"iteration": 1, "prompt": "test", "response": "response"}
-        ]
+        iterations = [{"iteration": 1, "prompt": "test", "response": "response"}]
         result = ReflectionResult(
             original_query="What is AI?",
             iterations=iterations,
             final_response="AI is...",
             strategy_used=ReflectionStrategy.SELF_CRITIQUE,
-            total_tokens=100
+            total_tokens=100,
         )
         assert result.original_query == "What is AI?"
         assert result.final_response == "AI is..."
@@ -94,7 +92,7 @@ class TestReflectionResult:
             iterations=[],
             final_response="Result",
             strategy_used=ReflectionStrategy.SELF_CRITIQUE,
-            total_tokens=50
+            total_tokens=50,
         )
         json_str = result.model_dump_json()
         assert "Test" in json_str
@@ -109,8 +107,7 @@ class TestReflectionPromptBuilder:
         """Test building a self-critique prompt."""
         builder = ReflectionPromptBuilder(ReflectionStrategy.SELF_CRITIQUE)
         prompt = builder.build_prompt(
-            original_query="What is AI?",
-            previous_response="AI is artificial intelligence..."
+            original_query="What is AI?", previous_response="AI is artificial intelligence..."
         )
         assert "What is AI?" in prompt
         assert "AI is artificial intelligence..." in prompt
@@ -120,8 +117,7 @@ class TestReflectionPromptBuilder:
         """Test building an alternative generation prompt."""
         builder = ReflectionPromptBuilder(ReflectionStrategy.ALTERNATIVE_GENERATION)
         prompt = builder.build_prompt(
-            original_query="Explain ML",
-            previous_response="ML is machine learning..."
+            original_query="Explain ML", previous_response="ML is machine learning..."
         )
         assert "Explain ML" in prompt
         assert "ML is machine learning..." in prompt
@@ -130,8 +126,7 @@ class TestReflectionPromptBuilder:
         """Test building a confidence assessment prompt."""
         builder = ReflectionPromptBuilder(ReflectionStrategy.CONFIDENCE_ASSESSMENT)
         prompt = builder.build_prompt(
-            original_query="What is DL?",
-            previous_response="DL is deep learning..."
+            original_query="What is DL?", previous_response="DL is deep learning..."
         )
         assert "What is DL?" in prompt
         assert "confidence" in prompt.lower()
@@ -140,8 +135,7 @@ class TestReflectionPromptBuilder:
         """Test building a verification prompt."""
         builder = ReflectionPromptBuilder(ReflectionStrategy.VERIFICATION)
         prompt = builder.build_prompt(
-            original_query="Verify statement",
-            previous_response="The statement is true..."
+            original_query="Verify statement", previous_response="The statement is true..."
         )
         assert "Verify statement" in prompt
         assert "verify" in prompt.lower()
@@ -150,8 +144,7 @@ class TestReflectionPromptBuilder:
         """Test building an adversarial prompt."""
         builder = ReflectionPromptBuilder(ReflectionStrategy.ADVERSARIAL)
         prompt = builder.build_prompt(
-            original_query="Argue a point",
-            previous_response="Point is valid because..."
+            original_query="Argue a point", previous_response="Point is valid because..."
         )
         assert "Argue a point" in prompt
         assert "challenge" in prompt.lower() or "argue" in prompt.lower()

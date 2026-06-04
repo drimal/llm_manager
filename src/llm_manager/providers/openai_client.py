@@ -42,7 +42,9 @@ class OpenAIClient(BaseLLMClient):
             self._client = openai.OpenAI(api_key=self._api_key)
         return self._client
 
-    def _build_request(self, prompt: str, params: GenerationParams, *, stream: bool) -> dict[str, Any]:
+    def _build_request(
+        self, prompt: str, params: GenerationParams, *, stream: bool
+    ) -> dict[str, Any]:
         messages = [
             {"role": "system", "content": [{"type": "text", "text": self.system_prompt}]},
             {"role": "user", "content": [{"type": "text", "text": prompt}]},
