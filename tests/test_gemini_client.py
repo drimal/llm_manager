@@ -10,9 +10,9 @@ import types as pytypes
 
 import pytest
 
+from llm_manager.exceptions import LLMProviderError
 from llm_manager.providers.gemini_client import GeminiClient
 from llm_manager.utils import LLMResponse
-from llm_manager.exceptions import LLMProviderError
 
 genai = pytest.importorskip("google.genai")
 

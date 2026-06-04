@@ -23,6 +23,7 @@ def mock_llm_response():
 def mock_llm_client(mock_llm_response):
     """Fixture providing a mock LLM client."""
     from unittest.mock import Mock
+
     from llm_manager.base import BaseLLMClient
     
     client = Mock(spec=BaseLLMClient)

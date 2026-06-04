@@ -1,8 +1,8 @@
 import pytest
 
-from llm_manager.factory import LLMFactory
 from llm_manager.base import BaseLLMClient
 from llm_manager.exceptions import UnknownProviderError
+from llm_manager.factory import LLMFactory
 
 
 def test_factory_returns_clients_and_has_generate():

@@ -1,13 +1,14 @@
 """Unit tests for the LLM Factory."""
 
 import pytest
-from llm_manager.factory import LLMFactory
+
 from llm_manager.exceptions import UnknownProviderError
+from llm_manager.factory import LLMFactory
 from llm_manager.providers import (
-    OpenAIClient,
     AnthropicClient,
     BedrockClient,
     OllamaClient,
+    OpenAIClient,
 )
 
 

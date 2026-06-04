@@ -1,15 +1,16 @@
 """Unit tests for exceptions."""
 
 import pytest
+
 from llm_manager.exceptions import (
-    LLMProviderError,
-    UnknownProviderError,
     APIConnectionError,
     AuthenticationError,
+    InvalidRequestError,
+    LLMProviderError,
+    ProviderUnavailableError,
     RateLimitError,
     TokenLimitError,
-    InvalidRequestError,
-    ProviderUnavailableError,
+    UnknownProviderError,
 )
 
 

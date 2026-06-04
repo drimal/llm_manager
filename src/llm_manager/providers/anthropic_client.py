@@ -1,131 +1,94 @@
-from typing import Any
-from ..base import BaseLLMClient
-from ..utils import LLMResponse, normalize_usage
-from ..exceptions import LLMProviderError
+from __future__ import annotations
+
 import logging
+from collections.abc import Iterator
+from typing import Any
+
+from ..base import BaseLLMClient, GenerationParams
+from ..exceptions import LLMProviderError, classify_error
+from ..rate_limit import RateLimiter
+from ..utils import LLMResponse, normalize_usage
 
 try:
-    import anthropic  # type: ignore
-except Exception:
-    anthropic = None
+    import anthropic
+except ImportError:  # pragma: no cover - exercised only when SDK is absent
+    anthropic = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MODEL = "claude-3-5-sonnet-20241022"
+
 
 class AnthropicClient(BaseLLMClient):
-    """Anthropic Claude LLM provider client.
-    
-    Implements the BaseLLMClient interface for Anthropic's Claude API,
-    supporting the latest Claude models with customizable parameters.
-    """
-    
-    def __init__(
-        self,
-        api_key: str,
-        system_prompt: str = "You are a helpful assistant",
-    ):
-        """Initialize Anthropic client.
-        
+    """Anthropic Claude provider client."""
+
+    _provider = "anthropic"
+
+    def __init__(self, api_key: str, system_prompt: str = "You are a helpful assistant"):
+        """Initialize the Anthropic client.
+
         Args:
-            api_key: Anthropic API key
-            system_prompt: System message to prepend to all requests
+            api_key: Anthropic API key.
+            system_prompt: System message sent with every request.
         """
         super().__init__(system_prompt=system_prompt)
         self._api_key = api_key
-        self._client = None
+        self._client: Any = None
 
-    def generate(self, prompt: str, **kwargs: Any) -> LLMResponse:
-        """Generate a response using Anthropic Claude API.
-        
-        Args:
-            prompt: User prompt to send to the model
-            **kwargs: Additional parameters including:
-                - model: Model name (default: claude-3-5-sonnet-20241022)
-                - temperature: Sampling temperature (default: 0.0)
-                - max_tokens: Max output tokens (default: 512)
-                - top_p: Top-p sampling (default: 1.0)
-                - tools: Tool definitions
-                
-        Returns:
-            LLMResponse: Standardized response with text, usage, and stop_reason
-            
-        Raises:
-            LLMProviderError: If API call fails
-        """
-        model = kwargs.get("model", "claude-3-5-sonnet-20241022")
-        tools = kwargs.get("tools", [])
+    def _get_client(self):
+        if self._client is None:
+            if anthropic is None:
+                raise LLMProviderError("anthropic library is not installed")
+            self._client = anthropic.Anthropic(api_key=self._api_key)
+        return self._client
 
+    def _build_request(self, prompt: str, params: GenerationParams) -> dict[str, Any]:
+        request: dict[str, Any] = {
+            "model": params.model or DEFAULT_MODEL,
+            "max_tokens": params.max_tokens,
+            "system": self.system_prompt,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": params.temperature,
+            "top_p": params.top_p,
+        }
+        if params.tools:
+            request["tools"] = params.tools
+        return request
+
+    def _complete(self, prompt: str, params: GenerationParams) -> LLMResponse:
+        client = self._get_client()
+        request = self._build_request(prompt, params)
+        logger.debug("Anthropic request: %s", request)
         try:
-            logger.debug(f"LLM Request - Prompt: {prompt}, Model: {model}")
-            
-            from ..retry import retry_call
+            response = client.messages.create(**request)
+        except Exception as exc:
+            raise classify_error(self._provider, exc) from exc
 
-            if self._client is None:
-                if anthropic is None:
-                    raise LLMProviderError("anthropic library is not installed")
-                self._client = anthropic.Anthropic(api_key=self._api_key)
-
-            # Rate limiting support
-            rate_conf = kwargs.get("rate_limit") or {}
-            from ..rate_limit import RateLimiter
-
-            rate_limiter = None
-            if rate_conf:
-                calls = rate_conf.get("calls", 60)
-                period = rate_conf.get("period", 60)
-                rate_limiter = RateLimiter(calls=calls, period=period)
-
-            # Anthropic supports streaming via incremental responses; if stream requested, yield chunks
-            if kwargs.get("stream"):
-                def _stream_generator():
-                    if rate_limiter:
-                        rate_limiter.acquire()
-                    stream_resp = self._client.messages.create(
-                        model=model,
-                        max_tokens=kwargs.get("max_tokens", 512),
-                        system=self.system_prompt,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=kwargs.get("temperature", 0.0),
-                        top_p=kwargs.get("top_p", 1.0),
-                        tools=tools if tools else None,
-                        stream=True,
-                    )
-                    for chunk in stream_resp:
-                        try:
-                            yield getattr(chunk, "text", "")
-                        except Exception:
-                            continue
-
-                return _stream_generator()
-
-            response = retry_call(
-                lambda: self._client.messages.create(
-                    model=model,
-                    max_tokens=kwargs.get("max_tokens", 512),
-                    system=self.system_prompt,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=kwargs.get("temperature", 0.0),
-                    top_p=kwargs.get("top_p", 1.0),
-                    tools=tools if tools else None,
-                ),
-                retries=3,
-                backoff=1.0,
-            )
-            
-            logger.debug(f"LLM Response: {response}")
-            
-            text = response.content[0].text if response.content else ""
-            usage = normalize_usage({
+        text = response.content[0].text if response.content else ""
+        usage = normalize_usage(
+            {
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
-            }, provider="anthropic")
-            stop_reason = response.stop_reason
-            
-            llm_response = LLMResponse(
-                text=text, usage=usage, stop_reason=stop_reason
-            )
-            return llm_response
-            
-        except Exception as e:
-            logger.error(f"Anthropic API Error: {e}")
-            raise LLMProviderError(f"Anthropic API Error: {e}")
+            },
+            provider=self._provider,
+        )
+        return LLMResponse(text=text, usage=usage, stop_reason=response.stop_reason)
+
+    def _stream(
+        self, prompt: str, params: GenerationParams, limiter: RateLimiter | None
+    ) -> Iterator[str]:
+        client = self._get_client()
+        request = self._build_request(prompt, params)
+        request["stream"] = True
+        if limiter is not None:
+            limiter.acquire()
+        try:
+            stream_resp = client.messages.create(**request)
+        except Exception as exc:
+            raise classify_error(self._provider, exc) from exc
+        for event in stream_resp:
+            # Text deltas arrive on content_block_delta events.
+            delta = getattr(event, "delta", None)
+            text = getattr(delta, "text", None) if delta is not None else None
+            if text:
+                yield text

@@ -1,8 +1,14 @@
 import time
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 
-def retry_call(func: Callable[[], Any], retries: int = 3, backoff: float = 1.0, exceptions: tuple = (Exception,)) -> Any:
+def retry_call(
+    func: Callable[[], Any],
+    retries: int = 3,
+    backoff: float = 1.0,
+    exceptions: tuple[type[BaseException], ...] = (Exception,),
+) -> Any:
     """Call `func` with retries and exponential backoff.
 
     Args:
@@ -19,7 +25,7 @@ def retry_call(func: Callable[[], Any], retries: int = 3, backoff: float = 1.0, 
     """
     attempt = 0
     delay = backoff
-    last_exc = None
+    last_exc: BaseException | None = None
     while attempt < retries:
         try:
             return func()
@@ -31,4 +37,5 @@ def retry_call(func: Callable[[], Any], retries: int = 3, backoff: float = 1.0, 
             time.sleep(delay)
             delay *= 2
     # If we get here, all retries failed
+    assert last_exc is not None  # for type-checkers; the loop guarantees this
     raise last_exc

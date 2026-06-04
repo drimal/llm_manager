@@ -1,5 +1,14 @@
-from llm_manager.reflection import ReflectiveLLMManager, ReflectionResult
+"""Unit tests for the reflection module."""
+
+import pytest
+
 from llm_manager.base import BaseLLMClient
+from llm_manager.reflection import (
+    ReflectionPromptBuilder,
+    ReflectionResult,
+    ReflectionStrategy,
+    ReflectiveLLMManager,
+)
 from llm_manager.utils import LLMResponse
 
 
@@ -29,14 +38,6 @@ def test_reflective_manager_basic():
     assert len(result.iterations) == 2
     assert result.final_response.startswith("response-")
     assert result.total_tokens >= 0
-"""Unit tests for reflection module."""
-
-import pytest
-from llm_manager.reflection import (
-    ReflectionStrategy,
-    ReflectionResult,
-    ReflectionPromptBuilder,
-)
 
 
 class TestReflectionStrategy:

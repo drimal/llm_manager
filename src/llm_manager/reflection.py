@@ -1,16 +1,20 @@
-from enum import Enum
-from typing import List, Dict, Optional, Any
-from pydantic import BaseModel, Field
 import logging
+from enum import Enum
+from typing import Any, cast
+
+from pydantic import BaseModel, Field
+
 from llm_manager.prompts.prompt_library import (
-    self_critique_prompt_template,
+    adversarial_prompt_template,
     alternative_generation_prompt_template,
     confidence_assessment_prompt_template,
+    self_critique_prompt_template,
     verification_prompt_template,
-    adversarial_prompt_template,
 )
+
 from .base import BaseLLMClient
 from .exceptions import LLMProviderError
+from .utils import LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ class ReflectionStrategy(Enum):
 class ReflectionResult(BaseModel):
     """Pydantic model representing the result of a reflection process."""
     original_query: str = Field(..., description="The original user query.")
-    iterations: List[Dict[str, Any]] = Field(..., description="List of iteration details.")
+    iterations: list[dict[str, Any]] = Field(..., description="List of iteration details.")
     final_response: str = Field(..., description="The final refined response.")
     strategy_used: ReflectionStrategy = Field(..., description="The reflection strategy used.")
     total_tokens: int = Field(..., description="Total tokens used in the reflection process.")
@@ -155,14 +159,14 @@ class ReflectiveLLMManager:
         try:
             # Convert the reflection strategy string to an enum
             strategy_enum = ReflectionStrategy(reflection_strategy)
-        except ValueError:
+        except ValueError as exc:
             raise ValueError(
                 f"Invalid reflection strategy '{reflection_strategy}'. "
                 f"Valid options: {[s.value for s in ReflectionStrategy]}"
-            )
+            ) from exc
     
-        # Start with the original query
-        previous_response = self.llm_client.generate(user_query, **kwargs)
+        # Start with the original query (reflection always uses non-streaming).
+        previous_response = cast(LLMResponse, self.llm_client.generate(user_query, **kwargs))
 
         # Perform iterations of reflection
         total_output_tokens = previous_response.usage.get("output_tokens", 0)
@@ -181,7 +185,9 @@ class ReflectiveLLMManager:
             
             # Generate a response using the LLM client
             try:
-                reflection_response = self.llm_client.generate(reflection_prompt, **kwargs)
+                reflection_response = cast(
+                    LLMResponse, self.llm_client.generate(reflection_prompt, **kwargs)
+                )
             except LLMProviderError as e:
                 logger.error(f"Error during reflection iteration {iteration_num + 1}: {e}")
                 raise

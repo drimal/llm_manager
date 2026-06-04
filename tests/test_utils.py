@@ -1,6 +1,5 @@
 """Unit tests for utilities and response handling."""
 
-import pytest
 from llm_manager.utils import LLMResponse, normalize_usage
 
 
