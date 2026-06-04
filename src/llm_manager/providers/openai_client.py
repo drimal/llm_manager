@@ -1,137 +1,99 @@
+from __future__ import annotations
+
+import logging
+from collections.abc import Iterator
 from typing import Any
-from ..base import BaseLLMClient
+
+from ..base import BaseLLMClient, GenerationParams
+from ..exceptions import LLMProviderError, classify_error
+from ..rate_limit import RateLimiter
 from ..utils import LLMResponse, normalize_usage
-from ..exceptions import LLMProviderError
-from ..retry import retry_call
 
 try:
-    import openai  # type: ignore
-except Exception:
-    openai = None
-import logging
+    import openai
+except ImportError:  # pragma: no cover - exercised only when SDK is absent
+    openai = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MODEL = "gpt-3.5-turbo"
+
 
 class OpenAIClient(BaseLLMClient):
-    """OpenAI LLM provider client.
-    
-    Implements the BaseLLMClient interface for OpenAI's API,
-    supporting chat completions with customizable parameters.
-    """
-    
-    def __init__(
-        self, api_key: str, system_prompt: str = "You are a helpful assistant"
-    ):
-        """Initialize OpenAI client.
+    """OpenAI chat-completions provider client."""
 
-        Note: the underlying `openai` library is imported lazily when `generate`
-        is called. This allows creating client instances in environments where
-        the `openai` package is not installed (e.g., unit tests).
+    _provider = "openai"
+
+    def __init__(self, api_key: str, system_prompt: str = "You are a helpful assistant"):
+        """Initialize the OpenAI client.
+
+        The underlying ``openai`` SDK is imported lazily and the client is
+        constructed on first use, so instances can be created in environments
+        where the SDK is not installed (e.g. unit tests).
         """
         super().__init__(system_prompt=system_prompt)
         self._api_key = api_key
-        self._client = None
+        self._client: Any = None
 
-    def generate(self, prompt: str, **kwargs: Any) -> LLMResponse:
-        """Generate a response using OpenAI API.
-        
-        Args:
-            prompt: User prompt to send to the model
-            **kwargs: Additional parameters including:
-                - model: Model name (default: gpt-3.5-turbo)
-                - temperature: Sampling temperature (default: 0.0)
-                - max_tokens: Max output tokens (default: 512)
-                - top_p: Top-p sampling parameter (default: 1.0)
-                - stream: Whether to stream response (default: False)
-                - stop: Stop sequences
-                - n: Number of completions
-                - tools: Tool definitions
-                
-        Returns:
-            LLMResponse: Standardized response with text, usage, and stop_reason
-            
-        Raises:
-            LLMProviderError: If API call fails
-        """
-        model = kwargs.get("model", "gpt-3.5-turbo")
-        tools = kwargs.get("tools", [])
+    def _get_client(self):
+        if self._client is None:
+            if openai is None:
+                raise LLMProviderError("openai library is not installed")
+            self._client = openai.OpenAI(api_key=self._api_key)
+        return self._client
 
+    def _build_request(
+        self, prompt: str, params: GenerationParams, *, stream: bool
+    ) -> dict[str, Any]:
         messages = [
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": self.system_prompt}],
-            },
+            {"role": "system", "content": [{"type": "text", "text": self.system_prompt}]},
             {"role": "user", "content": [{"type": "text", "text": prompt}]},
         ]
-        new_kwargs = {
+        request: dict[str, Any] = {
             "messages": messages,
-            "model": model,
-            "temperature": kwargs.get("temperature", 0.0),
-            "max_tokens": kwargs.get("max_tokens", 512),
-            "top_p": kwargs.get("top_p", 1.0),
-            "stream": kwargs.get("stream", False),
-            "stop": kwargs.get("stop", None),
-            "n": kwargs.get("n", 1),
+            "model": params.model or DEFAULT_MODEL,
+            "temperature": params.temperature,
+            "max_tokens": params.max_tokens,
+            "top_p": params.top_p,
+            "stop": params.stop,
+            "stream": stream,
         }
-        if tools:
-            new_kwargs["tools"] = tools
+        if params.tools:
+            request["tools"] = params.tools
+        return request
 
-        # Handle optional rate limiting configuration
-        rate_conf = kwargs.get("rate_limit") or {}
-        from ..rate_limit import RateLimiter
-
-        rate_limiter = None
-        if rate_conf:
-            calls = rate_conf.get("calls", 60)
-            period = rate_conf.get("period", 60)
-            rate_limiter = RateLimiter(calls=calls, period=period)
-
+    def _complete(self, prompt: str, params: GenerationParams) -> LLMResponse:
+        client = self._get_client()
+        request = self._build_request(prompt, params, stream=False)
+        logger.debug("OpenAI request: %s", request)
         try:
-            logger.debug(f"LLM Request: {messages}")
-            # Lazily instantiate the underlying OpenAI client if needed
-            if self._client is None:
-                if openai is None:
-                    raise LLMProviderError("openai library is not installed")
-                self._client = openai.OpenAI(api_key=self._api_key)
+            response = client.chat.completions.create(**request)
+        except Exception as exc:
+            raise classify_error(self._provider, exc) from exc
 
-            # If streaming is requested, return a generator that yields chunks
-            if new_kwargs.get("stream"):
-                def _stream_generator():
-                    if rate_limiter:
-                        rate_limiter.acquire()
-                    stream_resp = self._client.chat.completions.create(**new_kwargs)
-                    for chunk in stream_resp:
-                        # SDK chunk shape may vary; yield text content when available
-                        try:
-                            # for delta-based streaming
-                            yield chunk.choices[0].delta.get("content", "")
-                        except Exception:
-                            try:
-                                yield getattr(chunk, "text", "")
-                            except Exception:
-                                continue
+        text = (response.choices[0].message.content or "").strip()
+        usage_raw: Any = getattr(response, "usage", None) or {}
+        # OpenAI usage is a pydantic model; fall back to dict-like access otherwise.
+        usage_dict = usage_raw.model_dump() if hasattr(usage_raw, "model_dump") else usage_raw
+        usage = normalize_usage(usage_dict, provider=self._provider)
+        return LLMResponse(
+            text=text,
+            usage=usage,
+            stop_reason=response.choices[0].finish_reason,
+        )
 
-                return _stream_generator()
-
-            if rate_limiter:
-                rate_limiter.acquire()
-
-            response = retry_call(lambda: self._client.chat.completions.create(**new_kwargs), retries=3, backoff=1.0)
-            logger.debug(f"LLM Response: {response}")
-            text = response.choices[0].message.content.strip()
-            # normalize usage for both pydantic and dict-like objects
-            usage_raw = getattr(response, "usage", None) or {}
-            try:
-                usage_dict = usage_raw.model_dump()
-            except Exception:
-                usage_dict = usage_raw
-            usage = normalize_usage(usage_dict, provider="openai")
-            stop_reason = response.choices[0].finish_reason
-            llm_response = LLMResponse(
-                text=text, usage=usage, stop_reason=stop_reason
-            )
-            return llm_response
-        except Exception as e:
-            logger.error(f"OpenAI API Error: {e}")
-            raise LLMProviderError(f"OpenAI API Error: {e}")
+    def _stream(
+        self, prompt: str, params: GenerationParams, limiter: RateLimiter | None
+    ) -> Iterator[str]:
+        client = self._get_client()
+        request = self._build_request(prompt, params, stream=True)
+        if limiter is not None:
+            limiter.acquire()
+        try:
+            stream_resp = client.chat.completions.create(**request)
+        except Exception as exc:
+            raise classify_error(self._provider, exc) from exc
+        for chunk in stream_resp:
+            content = getattr(chunk.choices[0].delta, "content", None)
+            if content:
+                yield content

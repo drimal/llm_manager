@@ -1,42 +1,118 @@
 [project]
 name = "llm-manager"
-version = "0.1.0"
-description = "LLM manager for all kinds of LLM models"
+description = "A unified, provider-agnostic interface for multiple LLM providers (OpenAI, Anthropic, AWS Bedrock, Ollama, Gemini)."
 readme = "README.md"
-authors = [{ name = "Dipak Rimal",email= "rimaldipak@gmail.com"}]
-license = "MIT" 
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Dipak Rimal", email = "rimaldipak@gmail.com" }]
+keywords = [
+    "llm",
+    "openai",
+    "anthropic",
+    "claude",
+    "bedrock",
+    "ollama",
+    "gemini",
+    "ai",
+    "language-model",
+]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
-requires-python = ">=3.11"
+dynamic = ["version"]
+
+# Core dependencies are intentionally light. Provider SDKs are optional extras
+# so installing the package does not pull every vendor library.
 dependencies = [
-    "boto3>=1.40.64",
-    "anthropic>=0.7.0",
-    "openai>=2.6.1",
-    "python-dotenv>=1.2.1",
     "pydantic>=2.5.0",
-    "google-genai>=1.55.0",
+    "pyyaml>=6.0",
 ]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.7.0"]
+bedrock = ["boto3>=1.34.0"]
+gemini = ["google-genai>=1.0.0"]
+# Ollama speaks the OpenAI-compatible API, so it reuses the openai SDK.
+ollama = ["openai>=1.0.0"]
+all = [
+    "openai>=1.0.0",
+    "anthropic>=0.7.0",
+    "boto3>=1.34.0",
+    "google-genai>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/drimal/llm_manager"
+Repository = "https://github.com/drimal/llm_manager"
+Issues = "https://github.com/drimal/llm_manager/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/llm_manager/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_manager"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/llm_manager", "README.md", "LICENSE"]
+
 [dependency-groups]
 dev = [
-    "ipykernel>=7.1.0",
-    "jupyter>=1.1.1",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
-    "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "types-PyYAML>=6.0",
+    "build>=1.0.0",
+    # Provider SDKs needed to exercise the full test suite locally.
+    "openai>=1.0.0",
+    "anthropic>=0.7.0",
+    "boto3>=1.34.0",
+    "google-genai>=1.0.0",
 ]
 
-[project.optional-dependencies]
-gemini = [
-    "google-genai",
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-q"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["llm_manager"]
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[tool.coverage.run]
+source = ["llm_manager"]
+branch = true

@@ -26,57 +26,57 @@ Persona: Lepton — small, subtle, and scientifically sharp.
 ).strip()
 
 self_critique_prompt_template = textwrap.dedent(
-    f"""Critique your previous response and suggest improvements:
-    Question: \n {{query}}
+    """Critique your previous response and suggest improvements:
+    Question: \n {query}
                                                 
-    Your previous response: \n {{response}}
+    Your previous response: \n {response}
 
     Your task is to critically analyze your response. Identify any potential errors, oversights, or areas where the reasoning could be strengthened. Then provide an improved response that addresses these issues."""
 ).strip()
 
 alternative_generation_prompt_template = textwrap.dedent(
-    f"""Consider your previous response to this question:
+    """Consider your previous response to this question:
 
-    Question: {{query}}
+    Question: {query}
 
     Your previous response:
     
-    {{response}}
+    {response}
 
     Generate alternative approaches or perspectives that you did not consider initially. Then synthesize these alternatives with your original thinking to provide a more comprehensive response."""
 ).strip()
 
 confidence_assessment_prompt_template = textwrap.dedent(
-    f"""Evaluate your previous response to this question:
+    """Evaluate your previous response to this question:
 
-    Question: {{query}}
+    Question: {query}
 
     Your previous response:
     
-    {{response}}
+    {response}
 
     For each major claim or conclusion in your response, assess your confidence level and identify areas of uncertainty. Focus your reflection on the low-confidence areas and provide additional analysis or revised reasoning where needed."""
 ).strip()
 
 verification_prompt_template = textwrap.dedent(
-    f"""Verify your previous response to this question:
+    """Verify your previous response to this question:
 
-    Question: {{query}}
+    Question: {query}
 
     Your previous response:
-    {{response}}
+    {response}
 
     Check whether your response satisfies these criteria: internal logical consistency, completeness in addressing all aspects of the question, and accuracy of any factual claims. Identify any failures and provide a corrected response."""
 ).strip()
 
 adversarial_prompt_template = textwrap.dedent(
-    f"""Challenge your previous response to this question:
+    """Challenge your previous response to this question:
 
-    Question: {{query}}
+    Question: {query}
 
     Your previous response:
     
-    {{response}}
+    {response}
 
     Adopt a skeptical perspective and argue against your own conclusions. What counterarguments or alternative explanations exist? After considering these challenges, provide a refined response that addresses the strongest objections."""
 ).strip()

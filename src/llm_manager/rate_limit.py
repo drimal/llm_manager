@@ -1,6 +1,5 @@
 import time
 from threading import Lock
-from typing import Optional
 
 
 class RateLimiter:
@@ -28,7 +27,7 @@ class RateLimiter:
             self._tokens = min(self.calls, self._tokens + int(refill_tokens))
             self._last = now
 
-    def acquire(self, blocking: bool = True, timeout: Optional[float] = None) -> bool:
+    def acquire(self, blocking: bool = True, timeout: float | None = None) -> bool:
         """Acquire permission to proceed according to rate limits.
 
         If `blocking` is True, will sleep until a token is available (or timeout).
